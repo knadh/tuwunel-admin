@@ -3,6 +3,7 @@ mod config;
 mod handlers;
 mod matrix;
 mod parse;
+mod rooms;
 mod users;
 
 use anyhow::Result;
@@ -79,6 +80,11 @@ async fn main() -> Result<()> {
         .route("/users/:mxid/force-join", post(handlers::users_force_join))
         .route("/users/:mxid/force-leave", post(handlers::users_force_leave))
         .route("/users/:mxid/redact-event", post(handlers::users_redact_event))
+        .route("/rooms", get(handlers::rooms_list))
+        .route("/rooms/:room_id", get(handlers::rooms_detail))
+        .route("/rooms/:room_id/ban", post(handlers::rooms_ban))
+        .route("/rooms/:room_id/unban", post(handlers::rooms_unban))
+        .route("/rooms/:room_id/delete", post(handlers::rooms_delete))
         .route("/m/:module", get(handlers::module_page))
         .route("/cmd/:module/:action", post(handlers::run_command))
         .nest_service("/static", ServeDir::new("static"))

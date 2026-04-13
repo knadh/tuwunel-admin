@@ -11,7 +11,7 @@ use tower_sessions::Session;
 use crate::{
     commands,
     matrix::{self, server_name_from_mxid},
-    users, Ctx,
+    rooms, users, Ctx,
 };
 
 const SESS_KEY: &str = "sess";
@@ -531,6 +531,102 @@ pub async fn users_redact_event(
     let cmd = format!("users redact-event {evt}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Redacted {evt}")).await;
     Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+// ---- Rooms module ----
+
+pub async fn rooms_list(State(st): State<Arc<Ctx>>, session: Session) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let flash = take_flash(&session).await;
+
+    let mut ctx = base_ctx(&st, &sess, "rooms");
+    match rooms::list(&st.matrix, &sess).await {
+        Ok((rows, raw)) => {
+            let raw_html = markdown_to_html(&raw);
+            ctx.insert("rooms", &rows);
+            ctx.insert("rooms_raw", &raw);
+            ctx.insert("rooms_raw_html", &raw_html);
+        }
+        Err(e) => ctx.insert("error", &format!("{e:#}")),
+    }
+    insert_flash(&mut ctx, flash);
+    render(&st, "rooms/list.html", &ctx)
+}
+
+pub async fn rooms_detail(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(room_id): Path<String>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let flash = take_flash(&session).await;
+
+    let mut ctx = base_ctx(&st, &sess, "rooms");
+    ctx.insert("room_id", &room_id);
+    match rooms::detail(&st.matrix, &sess, &room_id).await {
+        Ok(d) => {
+            let raw_html = markdown_to_html(&d.members_raw);
+            ctx.insert("detail", &d);
+            ctx.insert("members_html", &raw_html);
+        }
+        Err(e) => ctx.insert("error", &format!("{e:#}")),
+    }
+    insert_flash(&mut ctx, flash);
+    render(&st, "rooms/detail.html", &ctx)
+}
+
+pub async fn rooms_ban(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(room_id): Path<String>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let cmd = format!("rooms moderation ban-room {room_id}");
+    run_and_flash(&st, &sess, &session, &cmd, &format!("Banned {room_id}")).await;
+    Redirect::to(&format!("/rooms/{room_id}")).into_response()
+}
+
+pub async fn rooms_unban(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(room_id): Path<String>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let cmd = format!("rooms moderation unban-room {room_id}");
+    run_and_flash(&st, &sess, &session, &cmd, &format!("Unbanned {room_id}")).await;
+    Redirect::to(&format!("/rooms/{room_id}")).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct DeleteRoomForm {
+    #[serde(default)]
+    pub force: Option<String>,
+}
+
+pub async fn rooms_delete(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(room_id): Path<String>,
+    Form(f): Form<DeleteRoomForm>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let cmd = if f.force.as_deref().is_some_and(|v| !v.is_empty()) {
+        format!("rooms delete {room_id} --force")
+    } else {
+        format!("rooms delete {room_id}")
+    };
+    run_and_flash(&st, &sess, &session, &cmd, &format!("Deleted {room_id}")).await;
+    Redirect::to("/rooms").into_response()
 }
 
 // Run an admin command and set a one-shot flash message based on the outcome.

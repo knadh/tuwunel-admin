@@ -1,0 +1,130 @@
+{% extends "layout.html" %}
+{% block title %}{{ room_id }} · Rooms · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Rooms / {% if detail and detail.row.name %}{{ detail.row.name }}{% else %}{{ room_id }}{% endif %}</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main x-data="roomDetail()">
+  <article>
+    <header class="mb-6">
+      <p class="mb-2"><small><a href="/rooms">← All rooms</a></small></p>
+      {% if detail and detail.row.name %}
+        <h1 style="margin:0">{{ detail.row.name }}</h1>
+        <p class="mt-2"><small class="muted">{{ room_id }}</small></p>
+      {% else %}
+        <h1 style="margin:0">{{ room_id }}</h1>
+      {% endif %}
+      {% if detail %}
+        <p class="mt-2 flex gap-2" style="align-items:center">
+          {% if detail.row.banned %}
+            <span class="badge" data-variant="danger">banned</span>
+          {% else %}
+            <span class="badge outline">ok</span>
+          {% endif %}
+        </p>
+      {% endif %}
+    </header>
+
+    <div class="mb-6">
+      {% include "partials/flash.html" %}
+    </div>
+
+    {% if detail %}
+      <section class="mb-6">
+        <h2 class="mb-4">Actions</h2>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          {% if detail.row.banned %}
+            <button popovertarget="pop-unban" class="outline">Unban</button>
+          {% else %}
+            <button popovertarget="pop-ban" class="outline" data-variant="danger">Ban</button>
+          {% endif %}
+          <button class="outline" data-variant="danger" commandfor="dlg-del" command="show-modal">Delete</button>
+        </div>
+      </section>
+
+      <section class="mb-6">
+        <h2 class="mb-4">Members {% if detail.members %} ({{ detail.members | length }}){% endif %}</h2>
+        {% if detail.members %}
+          <table>
+            <thead><tr><th>MXID</th></tr></thead>
+            <tbody>
+              {% for m in detail.members %}
+                <tr>
+                  <td>
+                    <a href="/users/{{ m | urlencode }}">{{ m | split(pat=":") | first | trim_start_matches(pat="@") }}</a>
+                    <br><small class="muted">{{ m }}</small>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div>{{ members_html | safe }}</div>
+        {% endif %}
+        <details class="mt-4">
+          <summary><small>Console log</small></summary>
+          <pre>{{ detail.members_raw }}</pre>
+        </details>
+      </section>
+    {% endif %}
+  </article>
+
+  <article class="card" popover id="pop-ban">
+    <header>
+      <h4>Ban this room?</h4>
+      <p>{% if detail and detail.row.name %}{{ detail.row.name }}{% else %}{{ room_id }}{% endif %} will be banned server-wide.</p>
+    </header>
+    <br />
+    <footer>
+      <button type="button" class="outline small" popovertarget="pop-ban">Cancel</button>
+      <form method="post" action="/rooms/{{ room_id | urlencode }}/ban" style="display:inline">
+        <button type="submit" data-variant="danger" class="small">Ban</button>
+      </form>
+    </footer>
+  </article>
+
+  <article class="card" popover id="pop-unban">
+    <header>
+      <h4>Unban this room?</h4>
+      <p>{% if detail and detail.row.name %}{{ detail.row.name }}{% else %}{{ room_id }}{% endif %} will be unbanned.</p>
+    </header>
+    <br />
+    <footer>
+      <button type="button" class="outline small" popovertarget="pop-unban">Cancel</button>
+      <form method="post" action="/rooms/{{ room_id | urlencode }}/unban" style="display:inline">
+        <button type="submit" class="small">Unban</button>
+      </form>
+    </footer>
+  </article>
+
+  <dialog id="dlg-del">
+    <form method="post" action="/rooms/{{ room_id | urlencode }}/delete">
+      <header>
+        <h3>Delete room</h3>
+        <p><small class="muted">{{ room_id }}</small></p>
+      </header>
+      <section>
+        <p><small>This removes the room from the server. Cannot be undone.</small></p>
+        <label data-field>
+          <input type="checkbox" name="force" value="on"> Force
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-del" command="close">Cancel</button>
+        <button type="submit" data-variant="danger">Delete</button>
+      </footer>
+    </form>
+  </dialog>
+</main>
+
+<script>
+function roomDetail() {
+  return {};
+}
+</script>
+{% endblock %}
