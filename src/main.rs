@@ -2,6 +2,8 @@ mod commands;
 mod config;
 mod handlers;
 mod matrix;
+mod parse;
+mod users;
 
 use anyhow::Result;
 use axum::{
@@ -68,6 +70,15 @@ async fn main() -> Result<()> {
             get(handlers::login_page).post(handlers::login_submit),
         )
         .route("/logout", post(handlers::logout))
+        .route("/users", get(handlers::users_list))
+        .route("/users/create", post(handlers::users_create))
+        .route("/users/:mxid", get(handlers::users_detail))
+        .route("/users/:mxid/reset-password", post(handlers::users_reset_password))
+        .route("/users/:mxid/deactivate", post(handlers::users_deactivate))
+        .route("/users/:mxid/make-admin", post(handlers::users_make_admin))
+        .route("/users/:mxid/force-join", post(handlers::users_force_join))
+        .route("/users/:mxid/force-leave", post(handlers::users_force_leave))
+        .route("/users/:mxid/redact-event", post(handlers::users_redact_event))
         .route("/m/:module", get(handlers::module_page))
         .route("/cmd/:module/:action", post(handlers::run_command))
         .nest_service("/static", ServeDir::new("static"))

@@ -1,19 +1,16 @@
 <aside data-sidebar>
-  <header>
-    <strong>tuwunel-admin</strong>
-  </header>
   <nav>
     <ul>
       <li><a href="/" {% if active == "home" %}aria-current="page"{% endif %}>Dashboard</a></li>
       {% for m in modules %}
         <li>
-          <a href="/m/{{ m.0 }}" {% if active == m.0 %}aria-current="page"{% endif %}>{{ m.1 }}</a>
+          <a href="{% if m.0 == 'users' %}/users{% else %}/m/{{ m.0 }}{% endif %}" {% if active == m.0 %}aria-current="page"{% endif %}>{{ m.1 }}</a>
         </li>
       {% endfor %}
     </ul>
   </nav>
   <footer>
-    <small>Logged in as<br><code>{{ user_id }}</code></small>
+    <small>{{ user_id }}</small>
     <form method="post" action="/logout">
       <button class="outline" type="submit">Log out</button>
     </form>

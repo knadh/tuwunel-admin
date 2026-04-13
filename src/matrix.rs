@@ -65,7 +65,7 @@ impl Matrix {
             .send()
             .await?
             .error_for_status()
-            .context("login failed — check username and password")?
+            .context("login failed: check username and password")?
             .json()
             .await?;
 
@@ -253,16 +253,13 @@ impl Matrix {
                 if ty != "m.room.message" || sender == sess.user_id {
                     continue;
                 }
-                let body = evt["content"]["formatted_body"]
-                    .as_str()
-                    .or_else(|| evt["content"]["body"].as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let format = evt["content"]["format"].as_str().unwrap_or("").to_string();
+                // Prefer the plain body. It's markdown-ish and parsable.
+                // formatted_body is the HTML representation and is only useful for raw display.
+                let body = evt["content"]["body"].as_str().unwrap_or("").to_string();
                 return Ok(BotReply {
                     sender: sender.to_string(),
                     body,
-                    is_html: format == "org.matrix.custom.html",
+                    is_html: false,
                 });
             }
         }

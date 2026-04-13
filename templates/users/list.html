@@ -1,0 +1,196 @@
+{% extends "layout.html" %}
+{% block title %}Users · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Users</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main x-data="usersPage()">
+  <article>
+    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;">
+      <h1 style="margin:0">Users ({{ users | length }})</h1>
+      <button commandfor="dlg-create" command="show-modal">＋ New user</button>
+    </header>
+
+    {% include "partials/flash.html" %}
+
+    <section>
+      <div class="row mb-4">
+        <div class="col-6">
+          <label data-field style="margin:0">
+            <input type="search" x-model.debounce.150ms="q" placeholder="Search mxid…" autocomplete="off">
+          </label>
+        </div>
+        <div class="col-6 flex gap-4" style="justify-content:flex-end">
+          <label data-field style="margin:0">
+            <select x-model="status">
+              <option value="all">All users</option>
+              <option value="active">Active (has activity)</option>
+              <option value="inactive">Inactive (no activity)</option>
+            </select>
+          </label>
+          <label data-field style="margin:0">
+            <select x-model="sort">
+              <option value="mxid">Sort: MXID (A→Z)</option>
+              <option value="last-active">Sort: Last active (newest)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <table id="users-table">
+        <thead>
+          <tr>
+            <th>MXID</th>
+            <th>Role</th>
+            <th>Last active</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr data-mxid="{{ u.mxid }}" data-admin="{{ u.is_admin }}"
+            data-last-active="{{ u.last_active | default(value='') }}">
+            <td>
+              <a href="/users/{{ u.mxid | urlencode }}">{{ u.mxid | split(pat=":") | first | trim_start_matches(pat="@")
+                }}</a>
+              <br><small class="muted">{{ u.mxid }}</small>
+            </td>
+            <td>
+              {% if u.is_admin %}
+              <span class="badge success">admin</span>
+              {% else %}
+              <span class="badge outline">user</span>
+              {% endif %}
+            </td>
+            <td>{% if u.last_active %}<small>{{ u.last_active }}</small>{% else %}<small>—</small>{% endif %}</td>
+            <td>
+              <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
+                <button class="outline" @click="openReset('{{ u.mxid }}')">Reset password</button>
+
+                {% if not u.is_admin %}
+                <button popovertarget="pop-mk" class="outline" @click="target = '{{ u.mxid }}'">Make admin</button>
+                {% endif %}
+
+                <button popovertarget="pop-da" class="outline" data-variant="danger"
+                  @click="target = '{{ u.mxid }}'">Deactivate</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </article>
+
+  <dialog id="dlg-rp" x-ref="rp">
+    <form method="post" :action="`/users/${encodeURIComponent(target)}/reset-password`">
+      <header>
+        <h3>Reset password</h3>
+        <p><small x-text="target"></small></p>
+      </header>
+      <section>
+        <label data-field>
+          New password
+          <input type="password" name="password" required autocomplete="new-password">
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-rp" command="close">Cancel</button>
+        <button type="submit">Reset</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <article class="card" popover id="pop-mk">
+    <header>
+      <h4>Grant server admin?</h4>
+      <p><span x-text="target"></span> will gain full server-admin privileges.</p>
+    </header>
+    <br />
+    <footer>
+      <button type="button" class="outline small" popovertarget="pop-mk">Cancel</button>
+      <form method="post" :action="`/users/${encodeURIComponent(target)}/make-admin`" style="display:inline">
+        <button type="submit" class="small">Grant</button>
+      </form>
+    </footer>
+  </article>
+
+  <article class="card" popover id="pop-da">
+    <header>
+      <h4>Deactivate <span x-text="target"></span>?</h4>
+      <p>This cannot be undone. The user will be removed from all rooms.</p>
+    </header>
+    <br />
+    <footer>
+      <button type="button" class="outline small" popovertarget="pop-da">Cancel</button>
+      <form method="post" :action="`/users/${encodeURIComponent(target)}/deactivate`" style="display:inline">
+        <button type="submit" data-variant="danger" class="small">Deactivate</button>
+      </form>
+    </footer>
+  </article>
+</main>
+
+<dialog id="dlg-create">
+  <form method="post" action="/users/create">
+    <header>
+      <h3>Create user</h3>
+      <p><small>New local account on {{ homeserver }}.</small></p>
+    </header>
+    <section>
+      <label data-field>
+        Username (localpart)
+        <input type="text" name="username" placeholder="alice" required autocomplete="off">
+      </label>
+      <label data-field>
+        Password
+        <input type="password" name="password" required autocomplete="new-password">
+      </label>
+    </section>
+    <footer>
+      <button type="button" class="outline" commandfor="dlg-create" command="close">Cancel</button>
+      <button type="submit">Create</button>
+    </footer>
+  </form>
+</dialog>
+
+<script>
+  function usersPage() {
+    return {
+      q: '', status: 'all', sort: 'mxid', target: '',
+      rows: [],
+      init() {
+        this.rows = Array.from(this.$el.querySelectorAll('#users-table tbody tr'));
+        ['q', 'status', 'sort'].forEach(k => this.$watch(k, () => this.apply()));
+        this.apply();
+      },
+
+      apply() {
+        const term = this.q.toLowerCase();
+        const st = this.status;
+        this.rows.forEach(r => {
+          const mxid = r.dataset.mxid.toLowerCase();
+          const hasActivity = !!r.dataset.lastActive;
+          const statusOk = st === 'all'
+            || (st === 'active' && hasActivity)
+            || (st === 'inactive' && !hasActivity);
+          r.hidden = !(mxid.includes(term) && statusOk);
+        });
+        const tbody = this.rows[0]?.parentNode;
+        if (!tbody) return;
+        const mode = this.sort;
+        [...this.rows].sort((a, b) => mode === 'last-active'
+          ? (b.dataset.lastActive || '').localeCompare(a.dataset.lastActive || '')
+          : a.dataset.mxid.localeCompare(b.dataset.mxid)
+        ).forEach(r => tbody.appendChild(r));
+      },
+
+      openReset(mxid) { this.target = mxid; this.$refs.rp.showModal(); },
+    };
+  }
+</script>
+{% endblock %}

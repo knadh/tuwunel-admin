@@ -5,9 +5,9 @@
 }
 
 [data-sidebar-layout] > main > article {
-  max-width: 56rem;
+  max-width: 80rem;
   margin-inline: auto;
-  padding: var(--space-6) var(--space-5);
+  padding: var(--space-6) var(--space-6);
 }
 
 body:not([data-sidebar-layout]) > main {
@@ -21,10 +21,6 @@ body:not([data-sidebar-layout]) > main > article {
   max-width: 24rem;
 }
 
-main > article > section > article + article {
-  margin-top: var(--space-6);
-}
-
 [data-sidebar] > footer {
   display: flex;
   flex-direction: column;
@@ -36,4 +32,16 @@ main pre {
   padding: var(--space-3);
   border-radius: var(--radius-medium);
   overflow-x: auto;
+}
+
+.muted {
+  color: var(--muted-foreground);
+}
+
+.alert pre {
+  margin: 0;
+  background: transparent;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }

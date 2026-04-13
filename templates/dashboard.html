@@ -11,14 +11,14 @@
 <main>
   <article>
     <header>
-      <h1>Dashboard</h1>
-      <p>Connected to <code>{{ homeserver }}</code> as <code>{{ user_id }}</code>. Admin room <code>{{ admin_room_id }}</code>.</p>
+      <h3>{{ homeserver }}</h3>
+      <p>Connected as {{ user_id }}. Admin room {{ admin_room_id }}.</p>
     </header>
-    <section>
+    <section class="mt-6">
       <h2>Modules</h2>
       <ul>
         {% for m in modules %}
-          <li><a href="/m/{{ m.0 }}">{{ m.1 }}</a></li>
+          <li><a href="{% if m.0 == 'users' %}/users{% else %}/m/{{ m.0 }}{% endif %}">{{ m.1 }}</a></li>
         {% endfor %}
       </ul>
     </section>

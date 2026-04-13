@@ -11,10 +11,43 @@ use tower_sessions::Session;
 use crate::{
     commands,
     matrix::{self, server_name_from_mxid},
-    Ctx,
+    users, Ctx,
 };
 
 const SESS_KEY: &str = "sess";
+const FLASH_KEY: &str = "flash";
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct Flash {
+    kind: String,
+    text: String,
+}
+
+async fn take_flash(session: &Session) -> Option<Flash> {
+    let f: Option<Flash> = session.get(FLASH_KEY).await.ok().flatten();
+    if f.is_some() {
+        let _ = session.remove::<Flash>(FLASH_KEY).await;
+    }
+    f
+}
+
+async fn set_flash(session: &Session, kind: &str, text: impl Into<String>) {
+    let _ = session
+        .insert(
+            FLASH_KEY,
+            &Flash {
+                kind: kind.into(),
+                text: text.into(),
+            },
+        )
+        .await;
+}
+
+fn insert_flash(ctx: &mut Context, flash: Option<Flash>) {
+    if let Some(f) = flash {
+        ctx.insert("flash", &f);
+    }
+}
 
 #[derive(serde::Serialize)]
 struct CmdView {
@@ -123,7 +156,7 @@ async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()
         .await?;
     if !members.iter().any(|m| m == &login.user_id) {
         anyhow::bail!(
-            "user {} is not a member of the admin room {} — not a server admin",
+            "user {} is not a member of the admin room {} (not a server admin)",
             login.user_id,
             alias
         );
@@ -276,6 +309,254 @@ fn render(st: &Ctx, template: &str, ctx: &Context) -> Response {
             tracing::error!("{msg}");
             (StatusCode::INTERNAL_SERVER_ERROR, msg).into_response()
         }
+    }
+}
+
+// ---- Users module ----
+
+#[derive(Deserialize)]
+pub struct CreateUserForm {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct PasswordForm {
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct RoomForm {
+    pub room: String,
+}
+
+#[derive(Deserialize)]
+pub struct RoomIdForm {
+    pub room_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct EventIdForm {
+    pub event_id: String,
+}
+
+pub async fn users_list(State(st): State<Arc<Ctx>>, session: Session) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let flash = take_flash(&session).await;
+
+    let mut ctx = base_ctx(&st, &sess, "users");
+    match users::list(&st.matrix, &sess).await {
+        Ok(rows) => ctx.insert("users", &rows),
+        Err(e) => ctx.insert("error", &format!("{e:#}")),
+    }
+    insert_flash(&mut ctx, flash);
+    render(&st, "users/list.html", &ctx)
+}
+
+pub async fn users_create(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Form(f): Form<CreateUserForm>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let username = f.username.trim();
+    if username.is_empty() || f.password.is_empty() {
+        set_flash(&session, "error", "Username and password are required.").await;
+        return Redirect::to("/users").into_response();
+    }
+    let cmd = format!("users create-user {username} {}", f.password);
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Created user {username}"),
+    )
+    .await;
+    Redirect::to("/users").into_response()
+}
+
+pub async fn users_detail(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(mxid): Path<String>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let flash = take_flash(&session).await;
+
+    let mut ctx = base_ctx(&st, &sess, "users");
+    ctx.insert("mxid", &mxid);
+    match users::detail(&st.matrix, &sess, &mxid).await {
+        Ok(d) => {
+            let raw_html = markdown_to_html(&d.joined_rooms_raw);
+            ctx.insert("detail", &d);
+            ctx.insert("joined_rooms_html", &raw_html);
+        }
+        Err(e) => ctx.insert("error", &format!("{e:#}")),
+    }
+    insert_flash(&mut ctx, flash);
+    render(&st, "users/detail.html", &ctx)
+}
+
+pub async fn users_reset_password(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(mxid): Path<String>,
+    Form(f): Form<PasswordForm>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    if f.password.is_empty() {
+        set_flash(&session, "error", "Password is required.").await;
+        return Redirect::to(&format!("/users/{mxid}")).into_response();
+    }
+    let cmd = format!("users reset-password {mxid} {}", f.password);
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Reset password for {mxid}"),
+    )
+    .await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn users_deactivate(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(mxid): Path<String>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let cmd = format!("users deactivate {mxid}");
+    run_and_flash(&st, &sess, &session, &cmd, &format!("Deactivated {mxid}")).await;
+    Redirect::to("/users").into_response()
+}
+
+pub async fn users_make_admin(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(mxid): Path<String>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let cmd = format!("users make-user-admin {mxid}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Granted admin to {mxid}"),
+    )
+    .await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn users_force_join(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(mxid): Path<String>,
+    Form(f): Form<RoomForm>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let room = f.room.trim();
+    if room.is_empty() {
+        set_flash(&session, "error", "Room is required.").await;
+        return Redirect::to(&format!("/users/{mxid}")).into_response();
+    }
+    let cmd = format!("users force-join-room {mxid} {room}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Joined {mxid} to {room}"),
+    )
+    .await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn users_force_leave(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(mxid): Path<String>,
+    Form(f): Form<RoomIdForm>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let room = f.room_id.trim();
+    if room.is_empty() {
+        set_flash(&session, "error", "Room ID is required.").await;
+        return Redirect::to(&format!("/users/{mxid}")).into_response();
+    }
+    let cmd = format!("users force-leave-room {mxid} {room}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Removed {mxid} from {room}"),
+    )
+    .await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn users_redact_event(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Path(mxid): Path<String>,
+    Form(f): Form<EventIdForm>,
+) -> Response {
+    let Some(sess) = current_session(&session).await else {
+        return Redirect::to("/login").into_response();
+    };
+    let evt = f.event_id.trim();
+    if evt.is_empty() {
+        set_flash(&session, "error", "Event ID is required.").await;
+        return Redirect::to(&format!("/users/{mxid}")).into_response();
+    }
+    let cmd = format!("users redact-event {evt}");
+    run_and_flash(&st, &sess, &session, &cmd, &format!("Redacted {evt}")).await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+// Run an admin command and set a one-shot flash message based on the outcome.
+// Tuwunel's bot replies are free-form; treat any reply body starting with "error" as an error.
+async fn run_and_flash(
+    st: &Ctx,
+    sess: &matrix::Session,
+    session: &Session,
+    cmd: &str,
+    success: &str,
+) {
+    match st.matrix.run_admin(sess, cmd).await {
+        Ok(r) => {
+            let lc = r.body.to_ascii_lowercase();
+            let looks_error = lc.trim_start().starts_with("error")
+                || lc.contains("command failed")
+                || lc.contains("unrecognized subcommand");
+            let kind = if looks_error { "error" } else { "success" };
+            let text = if looks_error {
+                r.body
+            } else {
+                format!("{success}\n\n{}", r.body)
+            };
+            set_flash(session, kind, text).await;
+        }
+        Err(e) => set_flash(session, "error", format!("{e:#}")).await,
     }
 }
 

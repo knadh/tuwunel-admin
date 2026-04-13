@@ -1,0 +1,178 @@
+{% extends "layout.html" %}
+{% block title %}{{ mxid }} · Users · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Users / {{ mxid }}</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main>
+  <article>
+    <header class="mb-6">
+      <p class="mb-2"><small><a href="/users">← All users</a></small></p>
+      <h1 style="margin:0">{{ mxid }}</h1>
+      {% if detail %}
+        <p class="mt-2 flex gap-2" style="align-items:center">
+          {% if detail.row.is_admin %}<span class="badge success">admin</span>{% else %}<span class="badge outline">user</span>{% endif %}
+          {% if detail.row.last_active %}<small>Last active {{ detail.row.last_active }}</small>{% endif %}
+        </p>
+      {% endif %}
+    </header>
+
+    <div class="mb-6">
+      {% include "partials/flash.html" %}
+    </div>
+
+    {% if detail %}
+      <section class="mb-6">
+        <h2 class="mb-4">Actions</h2>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          <button class="outline" commandfor="dlg-rp" command="show-modal">Reset password</button>
+          <button class="outline" commandfor="dlg-fj" command="show-modal">Force-join room</button>
+          <button class="outline" commandfor="dlg-fl" command="show-modal" data-variant="danger">Force-leave room</button>
+          <button class="outline" commandfor="dlg-re" command="show-modal" data-variant="danger">Redact event</button>
+
+          {% if not detail.row.is_admin %}
+            <ot-dropdown>
+              <button popovertarget="pop-mk" class="outline">Make admin</button>
+              <article class="card" popover id="pop-mk">
+                <header>
+                  <h4>Grant server admin?</h4>
+                  <p>{{ mxid }} will gain full server-admin privileges.</p>
+                </header>
+                <br />
+                <footer>
+                  <button type="button" class="outline small" popovertarget="pop-mk">Cancel</button>
+                  <form method="post" action="/users/{{ mxid | urlencode }}/make-admin" style="display:inline">
+                    <button type="submit" class="small">Grant</button>
+                  </form>
+                </footer>
+              </article>
+            </ot-dropdown>
+          {% endif %}
+
+          <ot-dropdown>
+            <button popovertarget="pop-da" class="outline" data-variant="danger">Deactivate</button>
+            <article class="card" popover id="pop-da">
+              <header>
+                <h4>Deactivate {{ mxid }}?</h4>
+                <p>This cannot be undone. The user will be removed from all rooms.</p>
+              </header>
+              <br />
+              <footer>
+                <button type="button" class="outline small" popovertarget="pop-da">Cancel</button>
+                <form method="post" action="/users/{{ mxid | urlencode }}/deactivate" style="display:inline">
+                  <button type="submit" data-variant="danger" class="small">Deactivate</button>
+                </form>
+              </footer>
+            </article>
+          </ot-dropdown>
+        </div>
+      </section>
+
+      <section class="mb-6">
+        <h2 class="mb-4">Rooms {% if detail.joined_rooms %}<small>({{ detail.joined_rooms | length }})</small>{% endif %}</h2>
+        {% if detail.joined_rooms %}
+          <table>
+            <thead><tr><th>Room ID</th><th>Name</th><th style="text-align:right">Members</th></tr></thead>
+            <tbody>
+              {% for r in detail.joined_rooms %}
+                <tr>
+                  <td>{{ r.room_id }}</td>
+                  <td>{{ r.name }}</td>
+                  <td style="text-align:right">{{ r.members }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div>{{ joined_rooms_html | safe }}</div>
+        {% endif %}
+        <details class="mt-4">
+          <summary><small>Console log</small></summary>
+          <pre>{{ detail.joined_rooms_raw }}</pre>
+        </details>
+      </section>
+    {% endif %}
+  </article>
+</main>
+
+<dialog id="dlg-rp">
+  <form method="post" action="/users/{{ mxid | urlencode }}/reset-password">
+    <header>
+      <h3>Reset password</h3>
+      <p><small>{{ mxid }}</small></p>
+    </header>
+    <section>
+      <label data-field>
+        New password
+        <input type="password" name="password" required autocomplete="new-password">
+      </label>
+    </section>
+    <footer>
+      <button type="button" class="outline" commandfor="dlg-rp" command="close">Cancel</button>
+      <button type="submit">Reset</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="dlg-fj">
+  <form method="post" action="/users/{{ mxid | urlencode }}/force-join">
+    <header>
+      <h3>Force-join room</h3>
+      <p><small>Make {{ mxid }} join a room.</small></p>
+    </header>
+    <section>
+      <label data-field>
+        Room ID or alias
+        <input type="text" name="room" placeholder="!abc:server or #room:server" required>
+      </label>
+    </section>
+    <footer>
+      <button type="button" class="outline" commandfor="dlg-fj" command="close">Cancel</button>
+      <button type="submit">Join</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="dlg-fl">
+  <form method="post" action="/users/{{ mxid | urlencode }}/force-leave">
+    <header>
+      <h3>Force-leave room</h3>
+      <p><small>Remove {{ mxid }} from a room.</small></p>
+    </header>
+    <section>
+      <label data-field>
+        Room ID
+        <input type="text" name="room_id" placeholder="!abc:server" required>
+      </label>
+    </section>
+    <footer>
+      <button type="button" class="outline" commandfor="dlg-fl" command="close">Cancel</button>
+      <button type="submit" data-variant="danger">Remove</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="dlg-re">
+  <form method="post" action="/users/{{ mxid | urlencode }}/redact-event">
+    <header>
+      <h3>Redact event</h3>
+      <p><small>Force-redact a message sent by {{ mxid }}.</small></p>
+    </header>
+    <section>
+      <label data-field>
+        Event ID
+        <input type="text" name="event_id" placeholder="$abc..." required>
+      </label>
+    </section>
+    <footer>
+      <button type="button" class="outline" commandfor="dlg-re" command="close">Cancel</button>
+      <button type="submit" data-variant="danger">Redact</button>
+    </footer>
+  </form>
+</dialog>
+{% endblock %}

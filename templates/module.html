@@ -15,13 +15,13 @@
       <h1>{{ module_title }}</h1>
     </header>
 
-    {% if error %}<div role="alert" class="alert danger">{{ error }}</div>{% endif %}
+    {% if error %}<div role="alert" class="alert danger mb-6">{{ error }}</div>{% endif %}
 
     {% if ran_cmd %}
       <section>
         <h2>Output</h2>
         <p><small>Command:</small> <code>{{ ran_cmd }}</code></p>
-        {% if reply_sender %}<p><small>Reply from <code>{{ reply_sender }}</code>:</small></p>{% endif %}
+        {% if reply_sender %}<p><small>Reply from {{ reply_sender }}:</small></p>{% endif %}
         {% if reply_html %}<div>{{ reply_html | safe }}</div>{% endif %}
         {% if reply_raw %}
           <details>
