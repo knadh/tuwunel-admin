@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block title %}Login · tuwunel-admin{% endblock %}
+
+{% block body %}
+<main>
+  <article>
+    <header>
+      <h1>tuwunel-admin</h1>
+      <p>Log in with a Matrix user that is a server admin.</p>
+    </header>
+
+    {% if error %}
+      <div role="alert" class="alert danger">{{ error }}</div>
+    {% endif %}
+
+    <p><small>Homeserver: <code>{{ homeserver }}</code></small></p>
+
+    <form method="post" action="/login">
+      <label data-field>
+        Username
+        <input type="text" name="username" placeholder="alice or @alice:server" required autocomplete="username">
+      </label>
+      <label data-field>
+        Password
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+      <button type="submit">Log in</button>
+    </form>
+  </article>
+</main>
+{% endblock %}

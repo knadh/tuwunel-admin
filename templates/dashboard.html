@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin</strong>
+</nav>
+{% include "_sidebar.html" %}
+<main>
+  <article>
+    <header>
+      <h1>Dashboard</h1>
+      <p>Connected to <code>{{ homeserver }}</code> as <code>{{ user_id }}</code>. Admin room <code>{{ admin_room_id }}</code>.</p>
+    </header>
+    <section>
+      <h2>Modules</h2>
+      <ul>
+        {% for m in modules %}
+          <li><a href="/m/{{ m.0 }}">{{ m.1 }}</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

@@ -1,0 +1,16 @@
+# tuwunel-admin config
+[server]
+bind = "0.0.0.0:8080"
+
+[matrix]
+# Homeserver base URL. All matrix CS-API calls target this.
+homeserver = "https://chat.example.net"
+
+# Bot user in the admin room. Conduwuit/tuwunel convention is the server localpart.
+# e.g. for chat.example.net: "@tuwunel:chat.example.net" or "@conduit:chat.example.net".
+# Leave empty to auto-detect from the first non-self sender in the admin room.
+admin_bot = ""
+
+# Admin room alias. Default for conduwuit/tuwunel is "#admins:{server_name}".
+# Leave empty to auto-derive.
+admin_room_alias = ""
