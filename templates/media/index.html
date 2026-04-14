@@ -1,0 +1,132 @@
+{% extends "layout.html" %}
+{% block title %}Media · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Media</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main>
+  <article>
+    <header class="mb-6">
+      <h1 style="margin:0">Media</h1>
+      <p class="mt-2"><small class="muted">Tuwunel doesn't index uploaded media for listing. Use the tools below to look up or purge content.</small></p>
+    </header>
+
+    {% include "partials/flash.html" %}
+
+    <article class="card mb-6">
+      <header>
+        <h3>Lookup file</h3>
+        <p><small class="muted">Fetch metadata for a single upload by its MXC URL.</small></p>
+      </header>
+      <form method="get" action="/media" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end">
+        <label data-field style="flex:1 1 420px;margin:0">
+          MXC URL
+          <input type="text" name="mxc" value="{{ lookup_mxc | default(value='') }}" placeholder="mxc://server/abc" required autocomplete="off">
+        </label>
+        <footer class="hstack">
+          <button type="submit">Look up</button>
+        </footer>
+      </form>
+
+      {% if file_info %}
+        <hr class="mt-4" />
+        <h4 class="mt-4"><code>{{ file_info.mxc }}</code></h4>
+        {% if file_info.fields %}
+          <table>
+            <tbody>
+              {% for f in file_info.fields %}
+                <tr>
+                  <td style="width:200px"><small class="muted">{{ f.0 }}</small></td>
+                  <td><code>{{ f.1 }}</code></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <pre>{{ file_info.raw }}</pre>
+        {% endif %}
+        <footer class="hstack">
+          <form method="post" action="/media/delete"
+                onsubmit="return confirm('Delete this media item? This cannot be undone.')">
+            <input type="hidden" name="mxc" value="{{ file_info.mxc }}">
+            <button type="submit" class="outline small" data-variant="danger">Delete this media</button>
+          </form>
+        </footer>
+      {% endif %}
+    </article>
+
+    <article class="card mb-6" x-data="{ mode: 'mxc' }">
+      <header>
+        <h3>Delete single media</h3>
+        <p><small class="muted">Remove one file by its MXC URL, or by the event that embedded it.</small></p>
+      </header>
+      <div class="flex gap-2 mb-4">
+        <button type="button" class="outline small" :data-variant="mode === 'mxc' ? 'primary' : ''" @click="mode = 'mxc'">By MXC URL</button>
+        <button type="button" class="outline small" :data-variant="mode === 'event' ? 'primary' : ''" @click="mode = 'event'">By event ID</button>
+      </div>
+      <form method="post" action="/media/delete"
+            onsubmit="return confirm('Delete this media? This cannot be undone.')">
+        <label data-field x-show="mode === 'mxc'">
+          MXC URL
+          <input type="text" name="mxc" placeholder="mxc://server/abc" autocomplete="off">
+        </label>
+        <label data-field x-show="mode === 'event'">
+          Event ID
+          <input type="text" name="event_id" placeholder="$abc..." autocomplete="off">
+        </label>
+        <footer class="hstack">
+          <button type="submit" data-variant="danger">Delete media</button>
+        </footer>
+      </form>
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Purge old remote media <span class="badge" data-variant="danger">destructive</span></h3>
+        <p><small class="muted">Free disk by deleting cached media from other servers. The duration accepts tuwunel shorthand like <code>30d</code>, <code>6h</code>, <code>2w</code>.</small></p>
+      </header>
+      <form method="post" action="/media/delete-past"
+            onsubmit="return confirm('Purge remote media? This cannot be undone.')">
+        <div class="row">
+          <label data-field class="col-6">
+            Duration
+            <input type="text" name="duration" placeholder="30d" required autocomplete="off">
+          </label>
+          <label data-field class="col-6" style="align-self:flex-end">
+            <input type="checkbox" name="after" value="on"> Delete media <strong>newer</strong> than this (default is older)
+          </label>
+        </div>
+        <footer class="hstack">
+          <button type="submit" data-variant="danger">Purge remote media</button>
+        </footer>
+      </form>
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Delete all media from user <span class="badge" data-variant="danger">destructive</span></h3>
+        <p><small class="muted">Remove every file uploaded by a single account.</small></p>
+      </header>
+      <form method="post" action="/media/delete-from-user"
+            onsubmit="return confirm('Delete every file uploaded by this user? This cannot be undone.')">
+        <label data-field>
+          User ID
+          <input type="text" name="user" placeholder="@alice:server" required autocomplete="off">
+        </label>
+        <footer class="hstack">
+          <button type="submit" data-variant="danger">Delete user's media</button>
+        </footer>
+      </form>
+    </article>
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
+    {% endif %}
+  </article>
+</main>
+{% endblock %}

@@ -68,11 +68,14 @@ pub async fn detail(
     id: &str,
 ) -> Result<AppserviceDetail> {
     let (rows, mut log) = list(mx, sess).await?;
-    let row = rows.into_iter().find(|r| r.id == id).unwrap_or(AppserviceRow {
-        id: id.to_string(),
-        sender_localpart: String::new(),
-        url: String::new(),
-    });
+    let row = rows
+        .into_iter()
+        .find(|r| r.id == id)
+        .unwrap_or(AppserviceRow {
+            id: id.to_string(),
+            sender_localpart: String::new(),
+            url: String::new(),
+        });
 
     let reply = run(mx, sess, &format!("appservices show-config {id}"), &mut log).await?;
     let config_yaml = parse::appservice_config_yaml(&reply.body).unwrap_or_default();

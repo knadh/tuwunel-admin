@@ -1,5 +1,7 @@
 pub mod appservices;
+pub mod media;
 pub mod rooms;
+pub mod tokens;
 pub mod users;
 
 use axum::{

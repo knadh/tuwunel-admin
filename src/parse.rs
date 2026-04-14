@@ -193,6 +193,108 @@ pub fn appservice_config_yaml(body: &str) -> Option<String> {
     Some(after_nl[..close].trim_end_matches('\n').to_string())
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TokenRow {
+    pub token: String,
+    pub uses_allowed: Option<u32>,
+    pub pending: u32,
+    pub completed: u32,
+    pub expiration: Option<String>,
+}
+
+/// Best-effort parser for `token list`. Tuwunel emits one bullet per token:
+///   ``- `TOKEN` --- Token used N times. Expires after M uses or in X days (YYYY-MM-DD HH:MM:SS).``
+/// Expiration wording varies: `Expires after M uses`, `or in X days (TS)`, or
+/// `Does not expire`. We extract what's there and leave the rest None.
+pub fn list_tokens(body: &str) -> Option<Vec<TokenRow>> {
+    let mut out = Vec::new();
+    for line in body.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) else {
+            continue;
+        };
+        let Some(rest) = rest.strip_prefix('`') else {
+            continue;
+        };
+        let Some(end) = rest.find('`') else {
+            continue;
+        };
+        let token = rest[..end].trim().to_string();
+        if token.is_empty() {
+            continue;
+        }
+        let tail = &rest[end + 1..];
+
+        let completed = extract_u32(tail, "used ", " time").unwrap_or(0);
+        let uses_allowed = extract_u32(tail, "after ", " use");
+        let expiration = tail.rfind('(').zip(tail.rfind(')')).and_then(|(a, b)| {
+            if a < b {
+                Some(tail[a + 1..b].trim().to_string())
+            } else {
+                None
+            }
+        });
+
+        out.push(TokenRow {
+            token,
+            uses_allowed,
+            pending: 0,
+            completed,
+            expiration,
+        });
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// Pull a u32 from `haystack` sitting between `before` and `after`.
+fn extract_u32(haystack: &str, before: &str, after: &str) -> Option<u32> {
+    let start = haystack.find(before)? + before.len();
+    let rest = &haystack[start..];
+    let end = rest.find(after)?;
+    rest[..end].trim().parse().ok()
+}
+
+/// Extract the first fenced (```…```) payload from a reply body.
+fn fenced(s: &str) -> Option<String> {
+    let open = s.find("```")?;
+    let after_open = &s[open + 3..];
+    let first_nl = after_open.find('\n')?;
+    let after_nl = &after_open[first_nl + 1..];
+    let close = after_nl.rfind("```")?;
+    Some(after_nl[..close].to_string())
+}
+
+/// Best-effort parser for `media get-file-info` output. Extracts `key: value`
+/// pairs from a fenced or plaintext body. Returns None if nothing matched.
+pub fn media_file_info(body: &str) -> Option<Vec<(String, String)>> {
+    let inner = fenced(body).unwrap_or_else(|| body.to_string());
+    let mut out = Vec::new();
+    for line in inner.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("```") {
+            continue;
+        }
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
+        let k = k.trim();
+        let v = v.trim();
+        if k.is_empty() || v.is_empty() || k.contains(' ') && k.len() > 40 {
+            continue;
+        }
+        out.push((k.to_string(), v.to_string()));
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
 /// `Rooms @mxid Joined (N):\n```\n!room\tMembers: N\tName: X\n...\n````
 pub fn list_joined_rooms(body: &str) -> Option<Vec<JoinedRoom>> {
     if !body.trim_start().starts_with("Rooms ") {

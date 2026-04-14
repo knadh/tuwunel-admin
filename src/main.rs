@@ -3,8 +3,10 @@ mod commands;
 mod config;
 mod handlers;
 mod matrix;
+mod media;
 mod parse;
 mod rooms;
+mod tokens;
 mod users;
 
 use anyhow::Result;
@@ -97,6 +99,16 @@ async fn main() -> Result<()> {
             "/rooms/:room_id/federation/disable",
             post(handlers::rooms::federation_disable),
         )
+        .route("/media", get(handlers::media::index))
+        .route("/media/delete", post(handlers::media::delete))
+        .route("/media/delete-past", post(handlers::media::delete_past))
+        .route(
+            "/media/delete-from-user",
+            post(handlers::media::delete_from_user),
+        )
+        .route("/tokens", get(handlers::tokens::list))
+        .route("/tokens/issue", post(handlers::tokens::issue))
+        .route("/tokens/:token/revoke", post(handlers::tokens::revoke))
         .route("/appservices", get(handlers::appservices::list))
         .route(
             "/appservices/register",

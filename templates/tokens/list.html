@@ -1,0 +1,188 @@
+{% extends "layout.html" %}
+{% block title %}Registration tokens · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Registration tokens</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main x-data="tokensPage()">
+  <article>
+    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;">
+      <h1 style="margin:0">Registration tokens{% if tokens %} ({{ tokens | length }}){% endif %}</h1>
+      <button commandfor="dlg-issue" command="show-modal">＋ New token</button>
+    </header>
+
+    {% include "partials/flash.html" %}
+
+    {% if tokens %}
+      <section>
+        <div class="row mb-4">
+          <div class="col-6">
+            <label data-field style="margin:0">
+              <input type="search" x-model.debounce.150ms="q" placeholder="Search token…" autocomplete="off">
+            </label>
+          </div>
+          <div class="col-6 flex gap-4" style="justify-content:flex-end">
+            <label data-field style="margin:0">
+              <select x-model="status">
+                <option value="all">All tokens</option>
+                <option value="unused">Unused</option>
+                <option value="used">Used at least once</option>
+                <option value="expiring">With expiration</option>
+              </select>
+            </label>
+            <label data-field style="margin:0">
+              <select x-model="sort">
+                <option value="token">Sort: Token</option>
+                <option value="completed">Sort: Times used (most)</option>
+                <option value="pending">Sort: Pending (most)</option>
+                <option value="expiration">Sort: Expiration</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <table id="tokens-table">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th style="text-align:right">Used</th>
+              <th style="text-align:right">Pending</th>
+              <th>Limit</th>
+              <th>Expires</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tokens %}
+              <tr
+                data-token="{{ t.token }}"
+                data-completed="{{ t.completed }}"
+                data-pending="{{ t.pending }}"
+                data-expiration="{{ t.expiration | default(value='') }}">
+                <td><code>{{ t.token }}</code></td>
+                <td style="text-align:right">{{ t.completed }}</td>
+                <td style="text-align:right">{{ t.pending }}</td>
+                <td>
+                  {% if t.uses_allowed %}
+                    <small>{{ t.completed }}/{{ t.uses_allowed }}</small>
+                    {% if t.uses_allowed == 1 %}<span class="badge outline">one-time</span>{% endif %}
+                  {% else %}
+                    <small class="muted">unlimited</small>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if t.expiration %}
+                    <small>{{ t.expiration }}</small>
+                  {% else %}
+                    <small class="muted">never</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
+                    <button class="outline small" @click="copy('{{ t.token }}')">Copy</button>
+                    <button class="outline small" data-variant="danger" @click="target='{{ t.token }}'" popovertarget="pop-revoke">Revoke</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    {% else %}
+      <section>
+        <p class="muted">No registration tokens.</p>
+      </section>
+    {% endif %}
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
+    {% endif %}
+  </article>
+
+  <article class="card" popover id="pop-revoke">
+    <header>
+      <h4>Revoke token?</h4>
+      <p><small class="muted" x-text="target"></small></p>
+      <p><small>Anyone still holding this token won't be able to register with it.</small></p>
+    </header>
+    <br />
+    <footer>
+      <button type="button" class="outline small" popovertarget="pop-revoke">Cancel</button>
+      <form method="post" :action="`/tokens/${encodeURIComponent(target)}/revoke`" style="display:inline">
+        <button type="submit" data-variant="danger" class="small">Revoke</button>
+      </form>
+    </footer>
+  </article>
+
+  <dialog id="dlg-issue">
+    <form method="post" action="/tokens/issue">
+      <header>
+        <h3>Issue registration token</h3>
+        <p><small>Users present this token when registering on {{ homeserver }}.</small></p>
+      </header>
+      <section>
+        <div class="row">
+          <label data-field class="col-6">
+            Max uses
+            <input type="number" name="max_uses" placeholder="unlimited" min="1">
+          </label>
+          <label data-field class="col-6">
+            Max age
+            <input type="text" name="max_age" placeholder="7d">
+          </label>
+        </div>
+        <label data-field>
+          <input type="checkbox" name="once" value="on"> One-time use
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-issue" command="close">Cancel</button>
+        <button type="submit">Issue</button>
+      </footer>
+    </form>
+  </dialog>
+</main>
+
+<script>
+function tokensPage() {
+  return {
+    q: '', status: 'all', sort: 'token', target: '',
+    rows: [],
+    init() {
+      this.rows = Array.from(this.$el.querySelectorAll('#tokens-table tbody tr'));
+      ['q', 'status', 'sort'].forEach(k => this.$watch(k, () => this.apply()));
+      this.apply();
+    },
+    apply() {
+      const term = this.q.toLowerCase();
+      const st = this.status;
+      this.rows.forEach(r => {
+        const tok = r.dataset.token.toLowerCase();
+        const completed = +r.dataset.completed || 0;
+        const hasExpiry = !!r.dataset.expiration;
+        const statusOk = st === 'all'
+          || (st === 'unused' && completed === 0)
+          || (st === 'used' && completed > 0)
+          || (st === 'expiring' && hasExpiry);
+        r.hidden = !(tok.includes(term) && statusOk);
+      });
+      const tbody = this.rows[0]?.parentNode;
+      if (!tbody) return;
+      const mode = this.sort;
+      [...this.rows].sort((a, b) => {
+        if (mode === 'completed') return (+b.dataset.completed || 0) - (+a.dataset.completed || 0);
+        if (mode === 'pending') return (+b.dataset.pending || 0) - (+a.dataset.pending || 0);
+        if (mode === 'expiration') return (a.dataset.expiration || '\uffff').localeCompare(b.dataset.expiration || '\uffff');
+        return a.dataset.token.localeCompare(b.dataset.token);
+      }).forEach(r => tbody.appendChild(r));
+    },
+    copy(t) { navigator.clipboard?.writeText(t); },
+  };
+}
+</script>
+{% endblock %}
