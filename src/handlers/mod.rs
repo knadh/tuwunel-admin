@@ -1,3 +1,7 @@
+pub mod appservices;
+pub mod rooms;
+pub mod users;
+
 use axum::{
     extract::{Form, OriginalUri, Path, Query, Request, State},
     http::{StatusCode, Uri},
@@ -11,23 +15,23 @@ use tera::Context;
 use tower_sessions::Session;
 
 use crate::{
-    appservices, commands,
+    commands,
     matrix::{self, server_name_from_mxid},
-    rooms, users, Ctx,
+    Ctx,
 };
 
 const SESS_KEY: &str = "sess";
 const FLASH_KEY: &str = "flash";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
-struct Flash {
+pub(super) struct Flash {
     kind: String,
     text: String,
     #[serde(default)]
     log: Option<matrix::LogEntry>,
 }
 
-async fn take_flash(session: &Session) -> Option<Flash> {
+pub(super) async fn take_flash(session: &Session) -> Option<Flash> {
     let f: Option<Flash> = session.get(FLASH_KEY).await.ok().flatten();
     if f.is_some() {
         let _ = session.remove::<Flash>(FLASH_KEY).await;
@@ -35,7 +39,7 @@ async fn take_flash(session: &Session) -> Option<Flash> {
     f
 }
 
-async fn set_flash(session: &Session, kind: &str, text: impl Into<String>) {
+pub(super) async fn set_flash(session: &Session, kind: &str, text: impl Into<String>) {
     let _ = session
         .insert(
             FLASH_KEY,
@@ -66,7 +70,7 @@ async fn set_flash_with_log(
         .await;
 }
 
-fn insert_flash(ctx: &mut Context, flash: Option<Flash>) {
+pub(super) fn insert_flash(ctx: &mut Context, flash: Option<Flash>) {
     if let Some(f) = flash {
         ctx.insert("flash", &f);
     }
@@ -349,7 +353,7 @@ pub async fn run_command(
 }
 
 // Wrap the context with common fields.
-fn base_ctx(st: &Ctx, sess: &matrix::Session, active: &str) -> Context {
+pub(super) fn base_ctx(st: &Ctx, sess: &matrix::Session, active: &str) -> Context {
     let mut ctx = Context::new();
     ctx.insert("user_id", &sess.user_id);
     ctx.insert("homeserver", st.matrix.homeserver());
@@ -360,7 +364,7 @@ fn base_ctx(st: &Ctx, sess: &matrix::Session, active: &str) -> Context {
 }
 
 // Render a template and handle errors.
-fn render(st: &Ctx, template: &str, ctx: &Context) -> Response {
+pub(super) fn render(st: &Ctx, template: &str, ctx: &Context) -> Response {
     match st.tera.render(template, ctx) {
         Ok(body) => Html(body).into_response(),
         Err(e) => {
@@ -376,260 +380,13 @@ fn render(st: &Ctx, template: &str, ctx: &Context) -> Response {
     }
 }
 
-// Users.
-
-#[derive(Deserialize)]
-pub struct CreateUserForm {
-    pub username: String,
-    pub password: String,
-}
-
-#[derive(Deserialize)]
-pub struct PasswordForm {
-    pub password: String,
-}
-
-#[derive(Deserialize)]
-pub struct RoomForm {
-    pub room: String,
-}
-
-#[derive(Deserialize)]
-pub struct RoomIdForm {
-    pub room_id: String,
-}
-
-#[derive(Deserialize)]
-pub struct EventIdForm {
-    pub event_id: String,
-}
-
-pub async fn users_list(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-) -> Response {
-    let flash = take_flash(&session).await;
-
-    let mut ctx = base_ctx(&st, &sess, "users");
-    match users::list(&st.matrix, &sess).await {
-        Ok(rows) => ctx.insert("users", &rows),
-        Err(e) => ctx.insert("error", &format!("{e:#}")),
-    }
-    insert_flash(&mut ctx, flash);
-    render(&st, "users/list.html", &ctx)
-}
-
-pub async fn users_create(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Form(f): Form<CreateUserForm>,
-) -> Response {
-    let username = f.username.trim();
-    if username.is_empty() || f.password.is_empty() {
-        set_flash(&session, "error", "Username and password are required.").await;
-        return Redirect::to("/users").into_response();
-    }
-    let cmd = format!("users create-user {username} {}", f.password);
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Created user {username}"),
-    )
-    .await;
-    Redirect::to("/users").into_response()
-}
-
-pub async fn users_detail(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(mxid): Path<String>,
-) -> Response {
-    let flash = take_flash(&session).await;
-
-    let mut ctx = base_ctx(&st, &sess, "users");
-    ctx.insert("mxid", &mxid);
-    match users::detail(&st.matrix, &sess, &mxid).await {
-        Ok(d) => {
-            let raw_html = markdown_to_html(&d.joined_rooms_raw);
-            ctx.insert("detail", &d);
-            ctx.insert("joined_rooms_html", &raw_html);
-        }
-        Err(e) => ctx.insert("error", &format!("{e:#}")),
-    }
-    insert_flash(&mut ctx, flash);
-    render(&st, "users/detail.html", &ctx)
-}
-
-pub async fn users_reset_password(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(mxid): Path<String>,
-    Form(f): Form<PasswordForm>,
-) -> Response {
-    if f.password.is_empty() {
-        set_flash(&session, "error", "Password is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
-    }
-    let cmd = format!("users reset-password {mxid} {}", f.password);
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Reset password for {mxid}"),
-    )
-    .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
-}
-
-pub async fn users_deactivate(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(mxid): Path<String>,
-) -> Response {
-    let cmd = format!("users deactivate {mxid}");
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Deactivated {mxid}")).await;
-    Redirect::to("/users").into_response()
-}
-
-pub async fn users_make_admin(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(mxid): Path<String>,
-) -> Response {
-    let cmd = format!("users make-user-admin {mxid}");
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Granted admin to {mxid}"),
-    )
-    .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
-}
-
-pub async fn users_force_join(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(mxid): Path<String>,
-    Form(f): Form<RoomForm>,
-) -> Response {
-    let room = f.room.trim();
-    if room.is_empty() {
-        set_flash(&session, "error", "Room is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
-    }
-    let cmd = format!("users force-join-room {mxid} {room}");
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Joined {mxid} to {room}"),
-    )
-    .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
-}
-
-pub async fn users_force_leave(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(mxid): Path<String>,
-    Form(f): Form<RoomIdForm>,
-) -> Response {
-    let room = f.room_id.trim();
-    if room.is_empty() {
-        set_flash(&session, "error", "Room ID is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
-    }
-    let cmd = format!("users force-leave-room {mxid} {room}");
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Removed {mxid} from {room}"),
-    )
-    .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
-}
-
-pub async fn users_redact_event(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(mxid): Path<String>,
-    Form(f): Form<EventIdForm>,
-) -> Response {
-    let evt = f.event_id.trim();
-    if evt.is_empty() {
-        set_flash(&session, "error", "Event ID is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
-    }
-    let cmd = format!("users redact-event {evt}");
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Redacted {evt}")).await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
-}
-
-// ---- Rooms module ----
-
-pub async fn rooms_list(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-) -> Response {
-    let flash = take_flash(&session).await;
-
-    let mut ctx = base_ctx(&st, &sess, "rooms");
-    match rooms::list(&st.matrix, &sess).await {
-        Ok((rows, log)) => {
-            ctx.insert("rooms", &rows);
-            install_log(&mut ctx, flash.as_ref(), log);
-        }
-        Err(e) => ctx.insert("error", &format!("{e:#}")),
-    }
-    insert_flash(&mut ctx, flash);
-    render(&st, "rooms/list.html", &ctx)
-}
-
-pub async fn rooms_detail(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(room_id): Path<String>,
-) -> Response {
-    let flash = take_flash(&session).await;
-
-    let mut ctx = base_ctx(&st, &sess, "rooms");
-    ctx.insert("room_id", &room_id);
-    match rooms::detail(&st.matrix, &sess, &room_id).await {
-        Ok(d) => {
-            let raw_html = markdown_to_html(&d.members_raw);
-            let log = d.log.clone();
-            ctx.insert("detail", &d);
-            ctx.insert("members_html", &raw_html);
-            install_log(&mut ctx, flash.as_ref(), log);
-        }
-        Err(e) => ctx.insert("error", &format!("{e:#}")),
-    }
-    insert_flash(&mut ctx, flash);
-    render(&st, "rooms/detail.html", &ctx)
-}
-
 // Merge the flash's attached log entry (if any) with this page's log, insert
 // into ctx, and raise a `log_warning` flag if any entry looks like an error.
-fn install_log(ctx: &mut Context, flash: Option<&Flash>, mut page_log: Vec<matrix::LogEntry>) {
+pub(super) fn install_log(
+    ctx: &mut Context,
+    flash: Option<&Flash>,
+    mut page_log: Vec<matrix::LogEntry>,
+) {
     let merged = if let Some(entry) = flash.and_then(|f| f.log.clone()) {
         let mut out = Vec::with_capacity(page_log.len() + 1);
         out.push(entry);
@@ -645,89 +402,9 @@ fn install_log(ctx: &mut Context, flash: Option<&Flash>, mut page_log: Vec<matri
     }
 }
 
-pub async fn rooms_ban(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(room_id): Path<String>,
-) -> Response {
-    let cmd = format!("rooms moderation ban-room {room_id}");
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Banned {room_id}")).await;
-    Redirect::to(&format!("/rooms/{room_id}")).into_response()
-}
-
-pub async fn rooms_unban(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(room_id): Path<String>,
-) -> Response {
-    let cmd = format!("rooms moderation unban-room {room_id}");
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Unbanned {room_id}")).await;
-    Redirect::to(&format!("/rooms/{room_id}")).into_response()
-}
-
-pub async fn rooms_federation_enable(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(room_id): Path<String>,
-) -> Response {
-    let cmd = format!("federation enable-room {room_id}");
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Enabled federation for {room_id}"),
-    )
-    .await;
-    Redirect::to(&format!("/rooms/{room_id}")).into_response()
-}
-
-pub async fn rooms_federation_disable(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(room_id): Path<String>,
-) -> Response {
-    let cmd = format!("federation disable-room {room_id}");
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Disabled federation for {room_id}"),
-    )
-    .await;
-    Redirect::to(&format!("/rooms/{room_id}")).into_response()
-}
-
-#[derive(Deserialize)]
-pub struct DeleteRoomForm {
-    #[serde(default)]
-    pub force: Option<String>,
-}
-
-pub async fn rooms_delete(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(room_id): Path<String>,
-    Form(f): Form<DeleteRoomForm>,
-) -> Response {
-    let cmd = if f.force.as_deref().is_some_and(|v| !v.is_empty()) {
-        format!("rooms delete {room_id} --force")
-    } else {
-        format!("rooms delete {room_id}")
-    };
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Deleted {room_id}")).await;
-    Redirect::to("/rooms").into_response()
-}
-
 // Run an admin command and set a one-shot flash message based on the outcome.
 // Tuwunel's bot replies are free-form; treat any reply body starting with "error" as an error.
-async fn run_and_flash(
+pub(super) async fn run_and_flash(
     st: &Ctx,
     sess: &matrix::Session,
     session: &Session,
@@ -766,82 +443,8 @@ async fn run_and_flash(
     }
 }
 
-// Appservices module.
-#[derive(Deserialize)]
-pub struct RegisterAppserviceForm {
-    pub yaml: String,
-}
-
-pub async fn appservices_list(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-) -> Response {
-    let flash = take_flash(&session).await;
-
-    let mut ctx = base_ctx(&st, &sess, "appservice");
-    match appservices::list(&st.matrix, &sess).await {
-        Ok((rows, log)) => {
-            ctx.insert("appservices", &rows);
-            install_log(&mut ctx, flash.as_ref(), log);
-        }
-        Err(e) => ctx.insert("error", &format!("{e:#}")),
-    }
-    insert_flash(&mut ctx, flash);
-    render(&st, "appservices/list.html", &ctx)
-}
-
-pub async fn appservices_detail(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(id): Path<String>,
-) -> Response {
-    let flash = take_flash(&session).await;
-
-    let mut ctx = base_ctx(&st, &sess, "appservice");
-    ctx.insert("id", &id);
-    match appservices::detail(&st.matrix, &sess, &id).await {
-        Ok(d) => {
-            let log = d.log.clone();
-            ctx.insert("detail", &d);
-            install_log(&mut ctx, flash.as_ref(), log);
-        }
-        Err(e) => ctx.insert("error", &format!("{e:#}")),
-    }
-    insert_flash(&mut ctx, flash);
-    render(&st, "appservices/detail.html", &ctx)
-}
-
-pub async fn appservices_register(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Form(f): Form<RegisterAppserviceForm>,
-) -> Response {
-    let yaml = f.yaml.trim();
-    if yaml.is_empty() {
-        set_flash(&session, "error", "Registration YAML is required.").await;
-        return Redirect::to("/appservices").into_response();
-    }
-    let cmd = format!("appservices register\n```\n{yaml}\n```");
-    run_and_flash(&st, &sess, &session, &cmd, "Registered appservice").await;
-    Redirect::to("/appservices").into_response()
-}
-
-pub async fn appservices_unregister(
-    State(st): State<Arc<Ctx>>,
-    session: Session,
-    Extension(sess): Extension<matrix::Session>,
-    Path(id): Path<String>,
-) -> Response {
-    let cmd = format!("appservices unregister {id}");
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Unregistered {id}")).await;
-    Redirect::to("/appservices").into_response()
-}
-
 // Convert markdown to HTML for rendering command replies.
-fn markdown_to_html(md: &str) -> String {
+pub(super) fn markdown_to_html(md: &str) -> String {
     use pulldown_cmark::{html, Options, Parser};
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
