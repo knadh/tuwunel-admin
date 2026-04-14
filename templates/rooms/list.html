@@ -26,12 +26,12 @@
     {% if rooms %}
       <section>
         <div class="row mb-4">
-          <div class="col-6">
+          <div class="col-4">
             <label data-field style="margin:0">
               <input type="search" x-model.debounce.150ms="q" placeholder="Search room id, name or alias…" autocomplete="off">
             </label>
           </div>
-          <div class="col-6 flex gap-4" style="justify-content:flex-end;flex-wrap:wrap">
+          <div class="col-8 flex gap-4" style="justify-content:flex-end;flex-wrap:wrap">
             <label data-field style="margin:0">
               <select x-model="kind">
                 <option value="room">Rooms</option>

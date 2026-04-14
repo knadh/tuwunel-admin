@@ -38,6 +38,7 @@
       <header>
         <h3>Lifecycle <span class="badge" data-variant="danger">destructive</span></h3>
         <p><small class="muted">Affects every connected client on this server.</small></p>
+        <br />
       </header>
       <div class="flex gap-2" style="flex-wrap:wrap">
         <form method="post" action="/server/reload-mods"
@@ -53,7 +54,7 @@
         </form>
         <form method="post" action="/server/shutdown"
               onsubmit="return confirm('Shut the server down?')">
-          <button type="submit" class="outline" data-variant="danger">Shutdown</button>
+          <button type="submit" data-variant="danger">Shutdown</button>
         </form>
       </div>
     </article>
@@ -69,7 +70,7 @@
           <textarea name="message" rows="4" required></textarea>
         </label>
         <footer class="hstack">
-          <button type="submit" class="outline">Send notice</button>
+          <button type="submit">Send notice</button>
         </footer>
       </form>
     </article>
@@ -86,7 +87,7 @@
             <input type="text" name="server" placeholder="matrix.org" required autocomplete="off">
           </label>
           <footer class="hstack">
-            <button type="submit" class="outline">Ping</button>
+            <button type="submit">Ping</button>
           </footer>
         </form>
         <form method="post" action="/server/federation-resolve">
@@ -95,7 +96,7 @@
             <input type="text" name="server" placeholder="matrix.org" required autocomplete="off">
           </label>
           <footer class="hstack">
-            <button type="submit" class="outline">Resolve</button>
+            <button type="submit">Resolve</button>
           </footer>
         </form>
       </div>
@@ -112,7 +113,7 @@
           <textarea name="cmd" rows="3" placeholder="query globals" required></textarea>
         </label>
         <footer class="hstack">
-          <button type="submit" class="outline" data-variant="danger">Run command</button>
+          <button type="submit" data-variant="danger">Run command</button>
         </footer>
       </form>
     </article>

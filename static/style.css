@@ -64,6 +64,7 @@ main pre {
   flex-direction: column;
   padding: var(--space-5);
   margin: 0;
+  background-image: linear-gradient(135deg, rgba(31, 31, 255, 0.06) 0%, rgba(31, 31, 255, 0.02) 45%, rgba(31, 31, 255, 0) 100%);
 }
 .stat-head {
   display: flex;
