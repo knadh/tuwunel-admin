@@ -16,7 +16,7 @@
       <h1 style="margin:0">{{ mxid }}</h1>
       {% if detail %}
         <p class="mt-2 flex gap-2" style="align-items:center">
-          {% if detail.row.is_admin %}<span class="badge success">admin</span>{% else %}<span class="badge outline">user</span>{% endif %}
+          {% if detail.row.is_admin %}<span class="badge" data-variant="success">admin</span>{% else %}<span class="badge outline">user</span>{% endif %}
           {% if detail.row.last_active %}<small>Last active {{ detail.row.last_active }}</small>{% endif %}
         </p>
       {% endif %}

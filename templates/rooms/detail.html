@@ -22,7 +22,7 @@
       {% if detail %}
         <p class="mt-2 flex gap-2" style="align-items:center">
           {% if detail.row.banned %}
-            <span class="badge danger">banned</span>
+            <span class="badge" data-variant="danger">banned</span>
           {% else %}
             <span class="badge outline">ok</span>
           {% endif %}
@@ -56,7 +56,7 @@
             <span class="badge outline">enabled</span>
             Incoming federation is enabled for this room.
           {% else %}
-            <span class="badge">disabled</span>
+            <span class="badge" data-variant="danger">disabled</span>
             Incoming federation is disabled for this room.
           {% endif %}
         </p>
