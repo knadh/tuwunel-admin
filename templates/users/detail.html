@@ -73,16 +73,19 @@
         </div>
       </section>
 
-      <section class="mb-6">
-        <h2 class="mb-4">Rooms {% if detail.joined_rooms %}<small>({{ detail.joined_rooms | length }})</small>{% endif %}</h2>
+      <hr />
+      <section class="mb-6 mt-6">
+        <h2 class="mb-4">Rooms {% if detail.joined_rooms %} ({{ detail.joined_rooms | length }}){% endif %}</h2>
         {% if detail.joined_rooms %}
           <table>
-            <thead><tr><th>Room ID</th><th>Name</th><th style="text-align:right">Members</th></tr></thead>
+            <thead><tr><th>Name</th><th style="text-align:right">Members</th></tr></thead>
             <tbody>
               {% for r in detail.joined_rooms %}
                 <tr>
-                  <td>{{ r.room_id }}</td>
-                  <td>{{ r.name }}</td>
+                  <td>
+                    <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="muted">(unnamed)</em>{% endif %}</a>
+                    <br><small class="muted">{{ r.room_id }}</small>
+                  </td>
                   <td style="text-align:right">{{ r.members }}</td>
                 </tr>
               {% endfor %}

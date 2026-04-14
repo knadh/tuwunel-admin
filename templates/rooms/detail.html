@@ -35,7 +35,7 @@
     </div>
 
     {% if detail %}
-      <section class="mb-6">
+      <section class="mb-6 mt-6">
         <h2 class="mb-4">Actions</h2>
         <div class="flex gap-2" style="flex-wrap:wrap">
           {% if detail.row.banned %}
@@ -47,7 +47,8 @@
         </div>
       </section>
 
-      <section class="mb-6">
+      <hr />
+      <section class="mb-6 mt-6">
         <h2 class="mb-4">Members {% if detail.members %} ({{ detail.members | length }}){% endif %}</h2>
         {% if detail.members %}
           <table>
