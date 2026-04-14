@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+{% block title %}{{ id }} · App services · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / App services / {{ id }}</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main>
+  <article>
+    <header class="mb-6">
+      <p class="mb-2"><small><a href="/appservices">← All appservices</a></small></p>
+      <h1 style="margin:0">{{ id }}</h1>
+      {% if detail %}
+        <p class="mt-2 flex gap-2" style="align-items:center;flex-wrap:wrap">
+          {% if detail.row.sender_localpart %}<span class="badge outline">sender: {{ detail.row.sender_localpart }}</span>{% endif %}
+          {% if detail.row.url %}<small class="muted">{{ detail.row.url }}</small>{% endif %}
+        </p>
+      {% endif %}
+    </header>
+
+    <div class="mb-6">
+      {% include "partials/flash.html" %}
+    </div>
+
+    {% if error %}<div role="alert" class="alert danger mb-6">{{ error }}</div>{% endif %}
+
+    {% if detail %}
+      <section class="mb-6">
+        <h2 class="mb-4">Actions</h2>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          <button class="outline" data-variant="danger" popovertarget="pop-unreg">Unregister</button>
+        </div>
+      </section>
+
+      {% if detail.fields %}
+        <hr />
+        <section class="mb-6 mt-6">
+          <h2 class="mb-4">Registration</h2>
+          <table>
+            <tbody>
+              {% for f in detail.fields %}
+                <tr>
+                  <td style="width:220px"><small class="muted">{{ f.0 }}</small></td>
+                  <td><code>{{ f.1 }}</code></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+      {% endif %}
+
+      <hr />
+      <section class="mb-6 mt-6">
+        <h2 class="mb-4">Config (YAML)</h2>
+        {% if detail.config_yaml %}
+          <pre>{{ detail.config_yaml }}</pre>
+        {% else %}
+          <details open>
+            <summary><small>Raw reply</small></summary>
+            <pre>{{ detail.config_raw }}</pre>
+          </details>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
+    {% endif %}
+  </article>
+
+  <article class="card" popover id="pop-unreg">
+    <header>
+      <h4>Unregister {{ id }}?</h4>
+      <p><small>The registration will be removed. Running bridge processes will stop being able to authenticate.</small></p>
+    </header>
+    <br />
+    <footer>
+      <button type="button" class="outline small" popovertarget="pop-unreg">Cancel</button>
+      <form method="post" action="/appservices/{{ id | urlencode }}/unregister" style="display:inline">
+        <button type="submit" data-variant="danger" class="small">Unregister</button>
+      </form>
+    </footer>
+  </article>
+</main>
+{% endblock %}

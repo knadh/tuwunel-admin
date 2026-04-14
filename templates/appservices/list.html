@@ -1,0 +1,137 @@
+{% extends "layout.html" %}
+{% block title %}App services · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / App services</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main x-data="appservicesPage()">
+  <article>
+    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;">
+      <h1 style="margin:0">App services{% if appservices %} ({{ appservices | length }}){% endif %}</h1>
+      <button commandfor="dlg-register" command="show-modal">＋ Register</button>
+    </header>
+
+    {% include "partials/flash.html" %}
+
+    {% if error %}<div role="alert" class="alert danger mb-6">{{ error }}</div>{% endif %}
+
+    {% if appservices %}
+      <section>
+        <div class="row mb-4">
+          <div class="col-6">
+            <label data-field style="margin:0">
+              <input type="search" x-model.debounce.150ms="q" placeholder="Search appservice ID…" autocomplete="off">
+            </label>
+          </div>
+          <div class="col-6 flex gap-4" style="justify-content:flex-end">
+            <label data-field style="margin:0">
+              <select x-model="sort">
+                <option value="id">Sort: ID (A→Z)</option>
+                <option value="id-desc">Sort: ID (Z→A)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <table id="appservices-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in appservices %}
+              <tr data-id="{{ a.id }}">
+                <td>
+                  <a href="/appservices/{{ a.id | urlencode }}">{{ a.id }}</a>
+                </td>
+                <td>
+                  <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
+                    <a class="outline small" role="button" href="/appservices/{{ a.id | urlencode }}">View config</a>
+                    <button class="outline small" data-variant="danger" @click="target='{{ a.id }}'" popovertarget="pop-unreg">Unregister</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    {% else %}
+      <section>
+        <p class="muted">No appservices registered.</p>
+      </section>
+    {% endif %}
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
+    {% endif %}
+  </article>
+
+  <article class="card" popover id="pop-unreg">
+    <header>
+      <h4>Unregister appservice?</h4>
+      <p><small class="muted" x-text="target"></small></p>
+      <p><small>The registration will be removed. Running bridge processes will stop being able to authenticate.</small></p>
+    </header>
+    <br />
+    <footer>
+      <button type="button" class="outline small" popovertarget="pop-unreg">Cancel</button>
+      <form method="post" :action="`/appservices/${encodeURIComponent(target)}/unregister`" style="display:inline">
+        <button type="submit" data-variant="danger" class="small">Unregister</button>
+      </form>
+    </footer>
+  </article>
+
+  <dialog id="dlg-register">
+    <form method="post" action="/appservices/register">
+      <header>
+        <h3>Register appservice</h3>
+        <p><small>Paste the appservice registration YAML. Registering with an existing ID replaces the old entry.</small></p>
+      </header>
+      <section>
+        <label data-field>
+          Registration YAML
+          <textarea name="yaml" rows="14" required placeholder="id: example&#10;url: http://bridge:9999&#10;as_token: ...&#10;hs_token: ...&#10;sender_localpart: _example&#10;namespaces:&#10;  users: []&#10;  aliases: []&#10;  rooms: []"></textarea>
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-register" command="close">Cancel</button>
+        <button type="submit">Register</button>
+      </footer>
+    </form>
+  </dialog>
+</main>
+
+<script>
+function appservicesPage() {
+  return {
+    q: '', sort: 'id', target: '',
+    rows: [],
+    init() {
+      this.rows = Array.from(this.$el.querySelectorAll('#appservices-table tbody tr'));
+      ['q', 'sort'].forEach(k => this.$watch(k, () => this.apply()));
+      this.apply();
+    },
+    apply() {
+      const term = this.q.toLowerCase();
+      this.rows.forEach(r => {
+        r.hidden = !r.dataset.id.toLowerCase().includes(term);
+      });
+      const tbody = this.rows[0]?.parentNode;
+      if (!tbody) return;
+      const mode = this.sort;
+      [...this.rows].sort((a, b) => mode === 'id-desc'
+        ? b.dataset.id.localeCompare(a.dataset.id)
+        : a.dataset.id.localeCompare(b.dataset.id)
+      ).forEach(r => tbody.appendChild(r));
+    },
+  };
+}
+</script>
+{% endblock %}

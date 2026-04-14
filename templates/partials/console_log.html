@@ -1,0 +1,16 @@
+<details class="mt-4"{% if log_has_error %} open{% endif %}>
+  <summary>
+    <small>
+      Console log ({{ log | length }}){% if log_has_error %} <span class="badge" data-variant="danger">errors</span>{% endif %}
+    </small>
+  </summary>
+  {% for entry in log %}
+    <div class="mt-2">
+      <p>
+        <small class="muted">$ !admin {{ entry.cmd }}</small>
+        {% if entry.is_error %}<small><span class="badge" data-variant="danger">error</span></small>{% endif %}
+      </p>
+      <pre{% if entry.is_error %} data-variant="danger"{% endif %}>{{ entry.body }}</pre>
+    </div>
+  {% endfor %}
+</details>

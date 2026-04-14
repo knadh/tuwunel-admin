@@ -1,3 +1,4 @@
+mod appservices;
 mod commands;
 mod config;
 mod handlers;
@@ -95,6 +96,13 @@ async fn main() -> Result<()> {
         .route(
             "/rooms/:room_id/federation/disable",
             post(handlers::rooms_federation_disable),
+        )
+        .route("/appservices", get(handlers::appservices_list))
+        .route("/appservices/register", post(handlers::appservices_register))
+        .route("/appservices/:id", get(handlers::appservices_detail))
+        .route(
+            "/appservices/:id/unregister",
+            post(handlers::appservices_unregister),
         )
         .route("/m/:module", get(handlers::module_page))
         .route("/cmd/:module/:action", post(handlers::run_command))

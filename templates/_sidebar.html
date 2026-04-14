@@ -4,7 +4,7 @@
       <li><a href="/" {% if active == "home" %}aria-current="page"{% endif %}>Dashboard</a></li>
       {% for m in modules %}
         <li>
-          <a href="{% if m.0 == 'users' %}/users{% elif m.0 == 'rooms' %}/rooms{% else %}/m/{{ m.0 }}{% endif %}" {% if active == m.0 %}aria-current="page"{% endif %}>{{ m.1 }}</a>
+          <a href="{% if m.0 == 'users' %}/users{% elif m.0 == 'rooms' %}/rooms{% elif m.0 == 'appservice' %}/appservices{% else %}/m/{{ m.0 }}{% endif %}" {% if active == m.0 %}aria-current="page"{% endif %}>{{ m.1 }}</a>
         </li>
       {% endfor %}
     </ul>

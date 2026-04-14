@@ -162,6 +162,37 @@ pub fn list_banned_rooms(body: &str) -> Option<Vec<String>> {
     }
 }
 
+/// `Appservices (N): id1, id2, id3`. Returns the list of IDs (possibly empty
+/// for N=0). Returns None only if the header is missing.
+pub fn list_appservices(body: &str) -> Option<Vec<String>> {
+    let trimmed = body.trim();
+    let after = trimmed.strip_prefix("Appservices")?;
+    let colon = after.find(':')?;
+    let list = after[colon + 1..].trim();
+    if list.is_empty() {
+        return Some(Vec::new());
+    }
+    let ids: Vec<String> = list
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    Some(ids)
+}
+
+/// Extract the YAML payload from an `appservices show-config` reply. The reply
+/// shape is `Config for {id}:\n\n```yaml\n...\n```` — we return the fenced
+/// body. Falls back to None if no fenced block is found.
+pub fn appservice_config_yaml(body: &str) -> Option<String> {
+    let s = body;
+    let open = s.find("```")?;
+    let after_open = &s[open + 3..];
+    let first_nl = after_open.find('\n')?;
+    let after_nl = &after_open[first_nl + 1..];
+    let close = after_nl.rfind("```")?;
+    Some(after_nl[..close].trim_end_matches('\n').to_string())
+}
+
 /// `Rooms @mxid Joined (N):\n```\n!room\tMembers: N\tName: X\n...\n````
 pub fn list_joined_rooms(body: &str) -> Option<Vec<JoinedRoom>> {
     if !body.trim_start().starts_with("Rooms ") {
