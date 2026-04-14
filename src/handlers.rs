@@ -1,7 +1,9 @@
 use axum::{
-    extract::{Form, Path, State},
-    http::StatusCode,
+    extract::{Form, OriginalUri, Path, Query, Request, State},
+    http::{StatusCode, Uri},
+    middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
+    Extension,
 };
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
@@ -97,15 +99,43 @@ impl From<commands::Cmd> for CmdView {
     }
 }
 
+// Sanitize a ?next= target: only allow single-slash absolute paths.
+fn safe_next(next: Option<&str>) -> String {
+    match next {
+        Some(n) if n.starts_with('/') && !n.starts_with("//") && !n.starts_with("/\\") => {
+            n.to_string()
+        }
+        _ => "/".to_string(),
+    }
+}
+
+// Build a redirect to the login page, preserving the current URI as ?next=.
+fn redirect_to_login(uri: &Uri) -> Response {
+    let path = uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
+    if path == "/" || path.is_empty() || path == "/login" {
+        Redirect::to("/login").into_response()
+    } else {
+        Redirect::to(&format!("/login?next={}", urlencoding::encode(path))).into_response()
+    }
+}
+
+#[derive(Deserialize, Default)]
+pub struct NextQuery {
+    #[serde(default)]
+    pub next: Option<String>,
+}
+
 // Render the login page.
-pub async fn login_page(State(st): State<Arc<Ctx>>) -> Response {
-    render(&st, "login.html", &login_ctx(&st, None))
+pub async fn login_page(State(st): State<Arc<Ctx>>, Query(q): Query<NextQuery>) -> Response {
+    let next = safe_next(q.next.as_deref());
+    render(&st, "login.html", &login_ctx(&st, None, &next))
 }
 
 // Wrap the context.
-fn login_ctx(st: &Ctx, error: Option<&str>) -> Context {
+fn login_ctx(st: &Ctx, error: Option<&str>, next: &str) -> Context {
     let mut ctx = Context::new();
     ctx.insert("homeserver", st.matrix.homeserver());
+    ctx.insert("next", next);
     if let Some(e) = error {
         ctx.insert("error", e);
     }
@@ -123,11 +153,17 @@ pub struct LoginForm {
 pub async fn login_submit(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Query(q): Query<NextQuery>,
     Form(f): Form<LoginForm>,
 ) -> Response {
+    let next = safe_next(q.next.as_deref());
     match do_login(&st, session, f).await {
-        Ok(()) => Redirect::to("/").into_response(),
-        Err(e) => render(&st, "login.html", &login_ctx(&st, Some(&format!("{e:#}")))),
+        Ok(()) => Redirect::to(&next).into_response(),
+        Err(e) => render(
+            &st,
+            "login.html",
+            &login_ctx(&st, Some(&format!("{e:#}")), &next),
+        ),
     }
 }
 
@@ -180,20 +216,33 @@ pub async fn logout(State(st): State<Arc<Ctx>>, session: Session) -> Response {
     Redirect::to("/login").into_response()
 }
 
-// Get the current session, if any. Used by handlers to check auth and get user info.
-async fn current_session(session: &Session) -> Option<matrix::Session> {
-    session
+// Auth middleware: requires a valid session on protected routes. Redirects to
+// /login?next=<uri> otherwise, and injects matrix::Session into the request.
+pub async fn require_auth(
+    session: Session,
+    OriginalUri(uri): OriginalUri,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    match session
         .get::<matrix::Session>(SESS_KEY)
         .await
         .ok()
         .flatten()
+    {
+        Some(sess) => {
+            req.extensions_mut().insert(sess);
+            next.run(req).await
+        }
+        None => redirect_to_login(&uri),
+    }
 }
 
 // Render the dashboard page.
-pub async fn index(State(st): State<Arc<Ctx>>, session: Session) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
+pub async fn index(
+    State(st): State<Arc<Ctx>>,
+    Extension(sess): Extension<matrix::Session>,
+) -> Response {
     let mut ctx = base_ctx(&st, &sess, "home");
     ctx.insert("modules", commands::MODULES);
     render(&st, "dashboard.html", &ctx)
@@ -202,12 +251,9 @@ pub async fn index(State(st): State<Arc<Ctx>>, session: Session) -> Response {
 // Render a module page.
 pub async fn module_page(
     State(st): State<Arc<Ctx>>,
-    session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(module): Path<String>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let cmds = commands::by_module(&module);
     if cmds.is_empty() {
         return (StatusCode::NOT_FOUND, "unknown module").into_response();
@@ -230,13 +276,10 @@ pub async fn module_page(
 // Run a command and render the module page with the result.
 pub async fn run_command(
     State(st): State<Arc<Ctx>>,
-    session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path((module, action)): Path<(String, String)>,
     Form(form): Form<HashMap<String, String>>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let Some(cmd) = commands::find(&module, &action) else {
         return (StatusCode::NOT_FOUND, "unknown command").into_response();
     };
@@ -340,10 +383,11 @@ pub struct EventIdForm {
     pub event_id: String,
 }
 
-pub async fn users_list(State(st): State<Arc<Ctx>>, session: Session) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
+pub async fn users_list(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+) -> Response {
     let flash = take_flash(&session).await;
 
     let mut ctx = base_ctx(&st, &sess, "users");
@@ -358,11 +402,9 @@ pub async fn users_list(State(st): State<Arc<Ctx>>, session: Session) -> Respons
 pub async fn users_create(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Form(f): Form<CreateUserForm>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let username = f.username.trim();
     if username.is_empty() || f.password.is_empty() {
         set_flash(&session, "error", "Username and password are required.").await;
@@ -383,11 +425,9 @@ pub async fn users_create(
 pub async fn users_detail(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let flash = take_flash(&session).await;
 
     let mut ctx = base_ctx(&st, &sess, "users");
@@ -407,12 +447,10 @@ pub async fn users_detail(
 pub async fn users_reset_password(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
     Form(f): Form<PasswordForm>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     if f.password.is_empty() {
         set_flash(&session, "error", "Password is required.").await;
         return Redirect::to(&format!("/users/{mxid}")).into_response();
@@ -432,11 +470,9 @@ pub async fn users_reset_password(
 pub async fn users_deactivate(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let cmd = format!("users deactivate {mxid}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Deactivated {mxid}")).await;
     Redirect::to("/users").into_response()
@@ -445,11 +481,9 @@ pub async fn users_deactivate(
 pub async fn users_make_admin(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let cmd = format!("users make-user-admin {mxid}");
     run_and_flash(
         &st,
@@ -465,12 +499,10 @@ pub async fn users_make_admin(
 pub async fn users_force_join(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
     Form(f): Form<RoomForm>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let room = f.room.trim();
     if room.is_empty() {
         set_flash(&session, "error", "Room is required.").await;
@@ -491,12 +523,10 @@ pub async fn users_force_join(
 pub async fn users_force_leave(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
     Form(f): Form<RoomIdForm>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let room = f.room_id.trim();
     if room.is_empty() {
         set_flash(&session, "error", "Room ID is required.").await;
@@ -517,12 +547,10 @@ pub async fn users_force_leave(
 pub async fn users_redact_event(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
     Form(f): Form<EventIdForm>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let evt = f.event_id.trim();
     if evt.is_empty() {
         set_flash(&session, "error", "Event ID is required.").await;
@@ -535,10 +563,11 @@ pub async fn users_redact_event(
 
 // ---- Rooms module ----
 
-pub async fn rooms_list(State(st): State<Arc<Ctx>>, session: Session) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
+pub async fn rooms_list(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+) -> Response {
     let flash = take_flash(&session).await;
 
     let mut ctx = base_ctx(&st, &sess, "rooms");
@@ -558,11 +587,9 @@ pub async fn rooms_list(State(st): State<Arc<Ctx>>, session: Session) -> Respons
 pub async fn rooms_detail(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(room_id): Path<String>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let flash = take_flash(&session).await;
 
     let mut ctx = base_ctx(&st, &sess, "rooms");
@@ -582,11 +609,9 @@ pub async fn rooms_detail(
 pub async fn rooms_ban(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(room_id): Path<String>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let cmd = format!("rooms moderation ban-room {room_id}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Banned {room_id}")).await;
     Redirect::to(&format!("/rooms/{room_id}")).into_response()
@@ -595,11 +620,9 @@ pub async fn rooms_ban(
 pub async fn rooms_unban(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(room_id): Path<String>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let cmd = format!("rooms moderation unban-room {room_id}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Unbanned {room_id}")).await;
     Redirect::to(&format!("/rooms/{room_id}")).into_response()
@@ -614,12 +637,10 @@ pub struct DeleteRoomForm {
 pub async fn rooms_delete(
     State(st): State<Arc<Ctx>>,
     session: Session,
+    Extension(sess): Extension<matrix::Session>,
     Path(room_id): Path<String>,
     Form(f): Form<DeleteRoomForm>,
 ) -> Response {
-    let Some(sess) = current_session(&session).await else {
-        return Redirect::to("/login").into_response();
-    };
     let cmd = if f.force.as_deref().is_some_and(|v| !v.is_empty()) {
         format!("rooms delete {room_id} --force")
     } else {

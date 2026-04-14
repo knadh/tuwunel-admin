@@ -15,7 +15,7 @@
 
     <p><small>Homeserver: {{ homeserver }}</small></p>
 
-    <form method="post" action="/login">
+    <form method="post" action="/login{% if next and next != '/' %}?next={{ next | urlencode }}{% endif %}">
       <label data-field>
         Username
         <input type="text" name="username" placeholder="alice or @alice:server" required autocomplete="username">

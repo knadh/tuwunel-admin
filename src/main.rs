@@ -35,7 +35,6 @@ pub struct Ctx {
     pub matrix: matrix::Matrix,
 }
 
-
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -64,22 +63,26 @@ async fn main() -> Result<()> {
         .with_secure(false)
         .with_same_site(tower_sessions::cookie::SameSite::Lax);
 
-    let app = Router::new()
+    let protected = Router::new()
         .route("/", get(handlers::index))
-        .route(
-            "/login",
-            get(handlers::login_page).post(handlers::login_submit),
-        )
-        .route("/logout", post(handlers::logout))
         .route("/users", get(handlers::users_list))
         .route("/users/create", post(handlers::users_create))
         .route("/users/:mxid", get(handlers::users_detail))
-        .route("/users/:mxid/reset-password", post(handlers::users_reset_password))
+        .route(
+            "/users/:mxid/reset-password",
+            post(handlers::users_reset_password),
+        )
         .route("/users/:mxid/deactivate", post(handlers::users_deactivate))
         .route("/users/:mxid/make-admin", post(handlers::users_make_admin))
         .route("/users/:mxid/force-join", post(handlers::users_force_join))
-        .route("/users/:mxid/force-leave", post(handlers::users_force_leave))
-        .route("/users/:mxid/redact-event", post(handlers::users_redact_event))
+        .route(
+            "/users/:mxid/force-leave",
+            post(handlers::users_force_leave),
+        )
+        .route(
+            "/users/:mxid/redact-event",
+            post(handlers::users_redact_event),
+        )
         .route("/rooms", get(handlers::rooms_list))
         .route("/rooms/:room_id", get(handlers::rooms_detail))
         .route("/rooms/:room_id/ban", post(handlers::rooms_ban))
@@ -87,6 +90,15 @@ async fn main() -> Result<()> {
         .route("/rooms/:room_id/delete", post(handlers::rooms_delete))
         .route("/m/:module", get(handlers::module_page))
         .route("/cmd/:module/:action", post(handlers::run_command))
+        .route_layer(axum::middleware::from_fn(handlers::require_auth));
+
+    let app = Router::new()
+        .merge(protected)
+        .route(
+            "/login",
+            get(handlers::login_page).post(handlers::login_submit),
+        )
+        .route("/logout", post(handlers::logout))
         .nest_service("/static", ServeDir::new("static"))
         .layer(sess)
         .layer(tower_http::trace::TraceLayer::new_for_http())
