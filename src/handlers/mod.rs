@@ -21,7 +21,7 @@ use tower_sessions::Session;
 use crate::{
     commands,
     matrix::{self, server_name_from_mxid},
-    Ctx,
+    server as server_mod, Ctx,
 };
 
 const SESS_KEY: &str = "sess";
@@ -282,6 +282,8 @@ pub async fn index(
 ) -> Response {
     let mut ctx = base_ctx(&st, &sess, "home");
     ctx.insert("modules", commands::MODULES);
+    let dash = server_mod::dashboard(&st.matrix, &sess).await;
+    ctx.insert("dash", &dash);
     render(&st, "dashboard.html", &ctx)
 }
 

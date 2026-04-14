@@ -539,6 +539,54 @@ pub fn list_published_rooms(body: &str) -> Option<Vec<String>> {
     }
 }
 
+/// `users list-users` header is `Found N local user account(s):`. Returns N,
+/// falling back to counting mxid-shaped lines.
+pub fn count_users(body: &str) -> usize {
+    for line in body.lines() {
+        if let Some(rest) = line.trim().strip_prefix("Found ") {
+            if let Some(num) = rest.split_whitespace().next() {
+                if let Ok(n) = num.parse::<usize>() {
+                    return n;
+                }
+            }
+        }
+    }
+    body.lines()
+        .filter(|l| {
+            let t = l.trim();
+            t.starts_with('@') && t.contains(':')
+        })
+        .count()
+}
+
+/// `server memory-usage` body sections: `Services:\n...\nDatabase:\n...\nAllocator:\n...`.
+/// Returns the `key: value` pairs parsed from the Database section (e.g.
+/// "Memory buffers" → "3.21 MiB"). Returns an empty map if the section is
+/// missing.
+pub fn memory_database_section(body: &str) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    let Some(start) = body.find("Database:") else {
+        return out;
+    };
+    let after = &body[start + "Database:".len()..];
+    let end = after.find("\nAllocator:").unwrap_or(after.len());
+    for line in after[..end].lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("```") {
+            continue;
+        }
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
+        let k = k.trim();
+        let v = v.trim();
+        if !k.is_empty() && !v.is_empty() {
+            out.insert(k.to_string(), v.to_string());
+        }
+    }
+    out
+}
+
 /// `server list-features` output lines like `✅ foo [enabled]` / `❌ foo [disabled]`.
 pub fn list_features(body: &str) -> Option<Vec<(String, bool)>> {
     let mut out = Vec::new();

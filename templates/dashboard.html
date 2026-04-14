@@ -10,18 +10,102 @@
 {% include "_sidebar.html" %}
 <main>
   <article>
-    <header>
-      <h3>{{ homeserver }}</h3>
-      <p>Connected as {{ user_id }}. Admin room {{ admin_room_id }}.</p>
+    <header class="mb-6">
+      <h1 style="margin:0">{{ homeserver | replace(from="https://", to="") | replace(from="http://", to="") | trim_end_matches(pat="/") }}</h1>
+      <p class="mt-2 muted">Admin room: {{ admin_room_id }}</small></p>
     </header>
-    <section class="mt-6">
-      <h2>Modules</h2>
-      <ul>
-        {% for m in modules %}
-          <li><a href="{% if m.0 == 'users' %}/users{% else %}/m/{{ m.0 }}{% endif %}">{{ m.1 }}</a></li>
-        {% endfor %}
-      </ul>
+
+    {% if dash %}
+    <section class="stats-grid mb-6">
+      <article class="card stat">
+        <header class="stat-head">
+          <small class="muted">Server</small>
+          <span class="badge" data-variant="success">live</span>
+        </header>
+        <div class="stat-value">{% if dash.uptime %}{{ dash.uptime }}{% else %}–{% endif %}</div>
+        <small class="stat-sub">Uptime</small>
+        <dl class="kv mt-4">
+          {% if dash.db_mem_buffers %}
+          <div class="kv-row"><dt><small class="muted">DB memory buffers</small></dt><dd><strong>{{ dash.db_mem_buffers }}</strong></dd></div>
+          {% endif %}
+          {% if dash.db_row_cache %}
+          <div class="kv-row"><dt><small class="muted">DB row cache</small></dt><dd><strong>{{ dash.db_row_cache }}</strong></dd></div>
+          {% elif dash.db_table_readers %}
+          <div class="kv-row"><dt><small class="muted">DB table readers</small></dt><dd><strong>{{ dash.db_table_readers }}</strong></dd></div>
+          {% endif %}
+        </dl>
+        <footer class="mt-4"><a href="/server"><small>Server details →</small></a></footer>
+      </article>
+
+      <article class="card stat">
+        <header class="stat-head">
+          <small class="muted">Users</small>
+          <a href="/users"><small>view →</small></a>
+        </header>
+        <div class="stat-split">
+          <div>
+            <div class="stat-value">{{ dash.user_count }}</div>
+            <small class="stat-sub">Users</small>
+          </div>
+          <hr />
+          <div>
+            <div class="stat-value">{{ dash.admin_count }}</div>
+            <small class="stat-sub">Admins</small>
+          </div>
+        </div>
+      </article>
+
+      <article class="card stat">
+        <header class="stat-head">
+          <small class="muted">Rooms</small>
+          <a href="/rooms"><small>view →</small></a>
+        </header>
+        <div class="stat-split">
+          <div>
+            <div class="stat-value">{{ dash.local_rooms }}{% if dash.room_count_capped %}+{% endif %}</div>
+            <small class="stat-sub">Local</small>
+          </div>
+          <hr />
+          <div>
+            <div class="stat-value">{{ dash.federated_rooms }}</div>
+            <small class="stat-sub">Federated</small>
+          </div>
+        </div>
+        {% if dash.published_rooms or dash.banned_rooms %}
+        <small class="stat-sub mt-3">
+          {% if dash.published_rooms %}{{ dash.published_rooms }} published{% endif %}{% if dash.published_rooms and dash.banned_rooms %} · {% endif %}{% if dash.banned_rooms %}{{ dash.banned_rooms }} banned{% endif %}
+        </small>
+        {% endif %}
+      </article>
+
+      <article class="card stat">
+        <header class="stat-head">
+          <small class="muted">Features</small>
+          <a href="/server"><small>view →</small></a>
+        </header>
+        <div class="stat-value">{{ dash.features_enabled }}<span class="stat-suffix">/{{ dash.features_total }}</span></div>
+        <small class="stat-sub">Compile-time features enabled</small>
+      </article>
+
+      <article class="card stat">
+        <header class="stat-head">
+          <small class="muted">Appservices</small>
+          <a href="/appservices"><small>view →</small></a>
+        </header>
+        <div class="stat-value">{{ dash.appservices_count }}</div>
+        <small class="stat-sub">Registered bridges &amp; bots</small>
+      </article>
+
+      <article class="card stat">
+        <header class="stat-head">
+          <small class="muted">Federation</small>
+          <a href="/federation"><small>view →</small></a>
+        </header>
+        <div class="stat-value">{{ dash.federated_rooms }}</div>
+        <small class="stat-sub">Rooms accepting incoming federation</small>
+      </article>
     </section>
+    {% endif %}
   </article>
 </main>
 {% endblock %}
