@@ -295,6 +295,317 @@ pub fn media_file_info(body: &str) -> Option<Vec<(String, String)>> {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DeviceRow {
+    pub device_id: String,
+    pub display_name: Option<String>,
+    pub last_seen_ip: Option<String>,
+    pub last_seen_ts: Option<String>,
+}
+
+/// Parse `query users list-devices-metadata` output. The body is a Rust
+/// `Debug` print of a `Vec<Device>` inside a ```rs fence, like:
+/// ```
+/// [
+///     Device {
+///         device_id: "abc",
+///         display_name: Some(
+///             "foo",
+///         ),
+///         last_seen_ip: Some("1.2.3.4"),
+///         last_seen_ts: Some(2026-04-14T14:15:44.915),
+///     },
+///     ...
+/// ]
+/// ```
+pub fn list_devices(body: &str) -> Option<Vec<DeviceRow>> {
+    let inner = fenced(body)?;
+    // Collapse multi-line `Some(\n  value,\n)` into `Some(value,)` to make
+    // line-oriented parsing tractable.
+    let collapsed = collapse_some_blocks(&inner);
+    let mut out = Vec::new();
+    let mut cur: Option<DeviceRow> = None;
+    for line in collapsed.lines() {
+        let line = line.trim();
+        if line.starts_with("Device {") {
+            cur = Some(DeviceRow {
+                device_id: String::new(),
+                display_name: None,
+                last_seen_ip: None,
+                last_seen_ts: None,
+            });
+            continue;
+        }
+        if line == "}," || line == "}" {
+            if let Some(d) = cur.take() {
+                if !d.device_id.is_empty() {
+                    out.push(d);
+                }
+            }
+            continue;
+        }
+        let Some(d) = cur.as_mut() else { continue };
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
+        let k = k.trim();
+        let v = v.trim().trim_end_matches(',').trim();
+        let value = parse_debug_value(v);
+        match k {
+            "device_id" => d.device_id = value.unwrap_or_default(),
+            "display_name" => d.display_name = value,
+            "last_seen_ip" => d.last_seen_ip = value,
+            "last_seen_ts" => d.last_seen_ts = value,
+            _ => {}
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// Fold `Some(\n    X,\n)` into a single line `Some(X)`, preserving everything
+/// else. Used to simplify Rust-Debug parsing.
+fn collapse_some_blocks(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '(' {
+            // Look ahead: if the next non-space char is a newline, consume
+            // through the matching close-paren and flatten.
+            let mut lookahead = String::new();
+            let mut depth = 1;
+            let mut saw_newline = false;
+            for nc in chars.by_ref() {
+                if nc == '\n' {
+                    saw_newline = true;
+                    continue;
+                }
+                if nc == '(' {
+                    depth += 1;
+                } else if nc == ')' {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                lookahead.push(nc);
+            }
+            out.push('(');
+            if saw_newline {
+                // Flatten: strip surrounding whitespace on each line.
+                let flat: String = lookahead
+                    .split('\n')
+                    .map(str::trim)
+                    .collect::<Vec<_>>()
+                    .join("");
+                out.push_str(flat.trim_end_matches(','));
+            } else {
+                out.push_str(&lookahead);
+            }
+            out.push(')');
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Handle Rust Debug value forms: `None`, `Some(X)`, quoted strings, bare
+/// dates, numbers. Returns the inner value as a string or None.
+fn parse_debug_value(v: &str) -> Option<String> {
+    let v = v.trim().trim_end_matches(',').trim();
+    if v == "None" || v.is_empty() {
+        return None;
+    }
+    let v = v.strip_prefix("Some(").unwrap_or(v);
+    let v = v.strip_suffix(')').unwrap_or(v);
+    let v = v.trim().trim_end_matches(',').trim();
+    if v.is_empty() {
+        return None;
+    }
+    if let Some(inner) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+        return Some(inner.to_string());
+    }
+    Some(v.to_string())
+}
+
+/// Rooms alias listing. Format:
+/// ```
+/// Aliases:
+/// - `!roomid:server` -> #alias:server
+/// - `!roomid:server` -> #alias2:server
+/// ```
+/// Returns (room_id, alias) pairs.
+#[allow(dead_code)]
+pub fn list_aliases(body: &str) -> Option<Vec<(String, String)>> {
+    let mut out = Vec::new();
+    for line in body.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) else {
+            continue;
+        };
+        let Some(rest) = rest.strip_prefix('`') else {
+            continue;
+        };
+        let Some(close) = rest.find('`') else {
+            continue;
+        };
+        let room_id = rest[..close].trim().to_string();
+        let tail = &rest[close + 1..];
+        let Some(arrow) = tail.find("->") else {
+            continue;
+        };
+        let alias = tail[arrow + 2..].trim().to_string();
+        if !room_id.is_empty() && !alias.is_empty() {
+            out.push((room_id, alias));
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// `rooms alias list <ROOM_ID>` body:
+/// ```
+/// Aliases for !roomid:server:
+/// - #alias:server
+/// - #alias2:server
+/// ```
+/// Returns the list of aliases (strings).
+pub fn aliases_for_room(body: &str) -> Option<Vec<String>> {
+    let mut out = Vec::new();
+    for line in body.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) else {
+            continue;
+        };
+        let rest = rest.trim().trim_matches('`');
+        if rest.starts_with('#') && rest.contains(':') {
+            out.push(rest.to_string());
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// `Alias resolves to !roomid:server` → `!roomid:server`.
+pub fn alias_resolves_to(body: &str) -> Option<String> {
+    body.lines()
+        .map(str::trim)
+        .find_map(|l| l.strip_prefix("Alias resolves to "))
+        .map(|s| s.trim().to_string())
+}
+
+/// `Room topic:\n```\n…\n``` ` → topic text. Also tolerates a body with just
+/// the topic or a "no topic" message.
+pub fn room_topic(body: &str) -> Option<String> {
+    if body.trim().eq_ignore_ascii_case("no topic") {
+        return None;
+    }
+    fenced(body)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// `rooms directory list` output: a bullet list of room IDs.
+pub fn list_published_rooms(body: &str) -> Option<Vec<String>> {
+    if body.trim().to_ascii_lowercase().starts_with("no rooms") {
+        return Some(Vec::new());
+    }
+    let mut out = Vec::new();
+    for line in body.lines() {
+        let line = line.trim();
+        let rest = line
+            .strip_prefix("- ")
+            .or_else(|| line.strip_prefix("* "))
+            .unwrap_or(line);
+        let rest = rest.trim().trim_matches('`');
+        if rest.starts_with('!') && rest.contains(':') {
+            out.push(rest.to_string());
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// `server list-features` output lines like `✅ foo [enabled]` / `❌ foo [disabled]`.
+pub fn list_features(body: &str) -> Option<Vec<(String, bool)>> {
+    let mut out = Vec::new();
+    for line in body.lines() {
+        let line = line.trim();
+        let (enabled, rest) = if let Some(r) = line.strip_prefix("✅") {
+            (true, r.trim())
+        } else if let Some(r) = line.strip_prefix("❌") {
+            (false, r.trim())
+        } else {
+            continue;
+        };
+        let name = rest
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if !name.is_empty() {
+            out.push((name, enabled));
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// Rust-Debug array of strings inside a ```rs fence, like:
+/// ```rs
+/// [
+///     "!room:server",
+///     "!room2:server",
+/// ]
+/// ```
+/// Used by `query users get-shared-rooms`, `query users list-devices`, etc.
+pub fn debug_string_array(body: &str) -> Option<Vec<String>> {
+    let inner = fenced(body)?;
+    let mut out = Vec::new();
+    for line in inner.lines() {
+        let line = line.trim().trim_end_matches(',').trim();
+        if let Some(inner) = line.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+            out.push(inner.to_string());
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// `true` / `false` bare reply for `rooms exists`.
+#[allow(dead_code)]
+pub fn bool_reply(body: &str) -> Option<bool> {
+    match body.trim() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+/// `rooms info list-joined-members` body header line:
+/// `N Members in Room !roomid:server`. Ignored by `list_joined_members` which
+/// only cares about mxids. No extra parser needed.
+///
 /// `Rooms @mxid Joined (N):\n```\n!room\tMembers: N\tName: X\n...\n````
 pub fn list_joined_rooms(body: &str) -> Option<Vec<JoinedRoom>> {
     if !body.trim_start().starts_with("Rooms ") {

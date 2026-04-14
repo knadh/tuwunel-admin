@@ -1,11 +1,13 @@
 mod appservices;
 mod commands;
 mod config;
+mod federation;
 mod handlers;
 mod matrix;
 mod media;
 mod parse;
 mod rooms;
+mod server;
 mod tokens;
 mod users;
 
@@ -68,8 +70,13 @@ async fn main() -> Result<()> {
 
     let protected = Router::new()
         .route("/", get(handlers::index))
+        // Users
         .route("/users", get(handlers::users::list))
         .route("/users/create", post(handlers::users::create))
+        .route(
+            "/users/deactivate-all",
+            post(handlers::users::deactivate_all),
+        )
         .route("/users/:mxid", get(handlers::users::detail))
         .route(
             "/users/:mxid/reset-password",
@@ -86,7 +93,31 @@ async fn main() -> Result<()> {
             "/users/:mxid/redact-event",
             post(handlers::users::redact_event),
         )
+        .route(
+            "/users/:mxid/devices/:device_id/delete",
+            post(handlers::users::delete_device),
+        )
+        .route(
+            "/users/:mxid/rooms/:room_id/promote",
+            post(handlers::users::force_promote),
+        )
+        .route(
+            "/users/:mxid/rooms/:room_id/demote",
+            post(handlers::users::force_demote),
+        )
+        .route(
+            "/users/:mxid/rooms/:room_id/tag",
+            post(handlers::users::room_tag),
+        )
+        .route(
+            "/users/:mxid/rooms/:room_id/tags",
+            get(handlers::users::get_room_tags),
+        )
+        // Rooms
         .route("/rooms", get(handlers::rooms::list))
+        .route("/rooms/find-by-alias", get(handlers::rooms::find_by_alias))
+        .route("/rooms/prune-empty", post(handlers::rooms::prune_empty))
+        .route("/rooms/ban-list", post(handlers::rooms::ban_list))
         .route("/rooms/:room_id", get(handlers::rooms::detail))
         .route("/rooms/:room_id/ban", post(handlers::rooms::ban))
         .route("/rooms/:room_id/unban", post(handlers::rooms::unban))
@@ -99,16 +130,46 @@ async fn main() -> Result<()> {
             "/rooms/:room_id/federation/disable",
             post(handlers::rooms::federation_disable),
         )
+        .route(
+            "/rooms/:room_id/directory/publish",
+            post(handlers::rooms::directory_publish),
+        )
+        .route(
+            "/rooms/:room_id/directory/unpublish",
+            post(handlers::rooms::directory_unpublish),
+        )
+        .route("/rooms/:room_id/aliases", post(handlers::rooms::alias_add))
+        .route(
+            "/rooms/:room_id/aliases/remove",
+            post(handlers::rooms::alias_remove),
+        )
+        .route(
+            "/rooms/:room_id/force-join-users",
+            post(handlers::rooms::force_join_users),
+        )
+        // Media
         .route("/media", get(handlers::media::index))
         .route("/media/delete", post(handlers::media::delete))
-        .route("/media/delete-past", post(handlers::media::delete_past))
+        .route(
+            "/media/delete-by-event",
+            post(handlers::media::delete_by_event),
+        )
+        .route("/media/delete-list", post(handlers::media::delete_list))
+        .route("/media/delete-range", post(handlers::media::delete_range))
         .route(
             "/media/delete-from-user",
             post(handlers::media::delete_from_user),
         )
+        .route(
+            "/media/delete-from-server",
+            post(handlers::media::delete_from_server),
+        )
+        .route("/media/fetch-remote", post(handlers::media::fetch_remote))
+        // Tokens
         .route("/tokens", get(handlers::tokens::list))
         .route("/tokens/issue", post(handlers::tokens::issue))
         .route("/tokens/:token/revoke", post(handlers::tokens::revoke))
+        // Appservices
         .route("/appservices", get(handlers::appservices::list))
         .route(
             "/appservices/register",
@@ -119,6 +180,29 @@ async fn main() -> Result<()> {
             "/appservices/:id/unregister",
             post(handlers::appservices::unregister),
         )
+        // Federation
+        .route("/federation", get(handlers::federation::index))
+        .route(
+            "/federation/fetch-well-known",
+            post(handlers::federation::fetch_well_known),
+        )
+        .route(
+            "/federation/remote-user-in-rooms",
+            post(handlers::federation::remote_user_in_rooms),
+        )
+        // Server
+        .route("/server", get(handlers::server::index))
+        .route(
+            "/server/reload-config",
+            post(handlers::server::reload_config),
+        )
+        .route("/server/clear-caches", post(handlers::server::clear_caches))
+        .route("/server/backup", post(handlers::server::backup))
+        .route("/server/admin-notice", post(handlers::server::admin_notice))
+        .route("/server/reload-mods", post(handlers::server::reload_mods))
+        .route("/server/restart", post(handlers::server::restart))
+        .route("/server/shutdown", post(handlers::server::shutdown))
+        // Catch-all for diagnostics / anything else still in the module catalog
         .route("/m/:module", get(handlers::module_page))
         .route("/cmd/:module/:action", post(handlers::run_command))
         .route_layer(axum::middleware::from_fn(handlers::require_auth));

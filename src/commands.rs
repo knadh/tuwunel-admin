@@ -44,6 +44,7 @@ pub const MODULES: &[(&str, &str)] = &[
     ("appservice", "App services"),
     ("media", "Media"),
     ("tokens", "Registration tokens"),
+    ("federation", "Federation"),
     ("server", "Server"),
     ("diagnostics", "Diagnostics"),
 ];

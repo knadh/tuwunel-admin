@@ -60,49 +60,122 @@
       {% endif %}
     </article>
 
-    <article class="card mb-6" x-data="{ mode: 'mxc' }">
+    <article class="card mb-6">
       <header>
-        <h3>Delete single media</h3>
-        <p><small class="muted">Remove one file by its MXC URL, or by the event that embedded it.</small></p>
+        <h3>Fetch remote file</h3>
+        <p><small class="muted">Pull a remote file/thumbnail into the local cache for diagnosis.</small></p>
       </header>
-      <div class="flex gap-2 mb-4">
-        <button type="button" class="outline small" :data-variant="mode === 'mxc' ? 'primary' : ''" @click="mode = 'mxc'">By MXC URL</button>
-        <button type="button" class="outline small" :data-variant="mode === 'event' ? 'primary' : ''" @click="mode = 'event'">By event ID</button>
-      </div>
-      <form method="post" action="/media/delete"
-            onsubmit="return confirm('Delete this media? This cannot be undone.')">
-        <label data-field x-show="mode === 'mxc'">
+      <form method="post" action="/media/fetch-remote">
+        <label data-field>
           MXC URL
-          <input type="text" name="mxc" placeholder="mxc://server/abc" autocomplete="off">
+          <input type="text" name="mxc" placeholder="mxc://server/abc" required autocomplete="off">
         </label>
-        <label data-field x-show="mode === 'event'">
-          Event ID
-          <input type="text" name="event_id" placeholder="$abc..." autocomplete="off">
+        <div class="row">
+          <label data-field class="col-6">
+            Server (optional)
+            <input type="text" name="server" placeholder="auto" autocomplete="off">
+          </label>
+          <label data-field class="col-6">
+            Timeout (ms)
+            <input type="number" name="timeout" placeholder="10000" autocomplete="off">
+          </label>
+        </div>
+        <label data-field>
+          <input type="checkbox" name="thumbnail" value="on"> Thumbnail (uses width/height below)
         </label>
+        <div class="row">
+          <label data-field class="col-6">
+            Width
+            <input type="number" name="width" placeholder="800">
+          </label>
+          <label data-field class="col-6">
+            Height
+            <input type="number" name="height" placeholder="800">
+          </label>
+        </div>
         <footer class="hstack">
-          <button type="submit" data-variant="danger">Delete media</button>
+          <button type="submit" class="outline">Fetch</button>
         </footer>
       </form>
     </article>
 
     <article class="card mb-6">
       <header>
-        <h3>Purge old remote media <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Free disk by deleting cached media from other servers. The duration accepts tuwunel shorthand like <code>30d</code>, <code>6h</code>, <code>2w</code>.</small></p>
+        <h3>Delete by MXC URL <span class="badge" data-variant="danger">destructive</span></h3>
+        <p><small class="muted">Remove one file by its MXC URL.</small></p>
       </header>
-      <form method="post" action="/media/delete-past"
-            onsubmit="return confirm('Purge remote media? This cannot be undone.')">
+      <form method="post" action="/media/delete"
+            onsubmit="return confirm('Delete this media? This cannot be undone.')">
+        <label data-field>
+          MXC URL
+          <input type="text" name="mxc" placeholder="mxc://server/abc" required autocomplete="off">
+        </label>
+        <footer class="hstack">
+          <button type="submit" data-variant="danger">Delete</button>
+        </footer>
+      </form>
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Delete by event <span class="badge" data-variant="danger">destructive</span></h3>
+        <p><small class="muted">Remove all media embedded in a specific event (image + thumbnail).</small></p>
+      </header>
+      <form method="post" action="/media/delete-by-event"
+            onsubmit="return confirm('Delete media referenced by this event?')">
+        <label data-field>
+          Event ID
+          <input type="text" name="event_id" placeholder="$abc..." required autocomplete="off">
+        </label>
+        <footer class="hstack">
+          <button type="submit" data-variant="danger">Delete</button>
+        </footer>
+      </form>
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Bulk delete MXC list <span class="badge" data-variant="danger">destructive</span></h3>
+        <p><small class="muted">Paste a newline-separated list of MXC URLs. Errors inside the batch are ignored.</small></p>
+      </header>
+      <form method="post" action="/media/delete-list"
+            onsubmit="return confirm('Delete all these media files? This cannot be undone.')">
+        <label data-field>
+          MXC URLs
+          <textarea name="mxcs" rows="8" placeholder="mxc://server/a
+mxc://server/b" required></textarea>
+        </label>
+        <footer class="hstack">
+          <button type="submit" data-variant="danger">Delete list</button>
+        </footer>
+      </form>
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Delete by age <span class="badge" data-variant="danger">destructive</span></h3>
+        <p><small class="muted">Free disk by deleting media created before/after a relative duration. Accepts <code>30d</code>, <code>6h</code>, etc.</small></p>
+      </header>
+      <form method="post" action="/media/delete-range"
+            onsubmit="return confirm('Purge media in this range? This cannot be undone.')">
         <div class="row">
           <label data-field class="col-6">
             Duration
             <input type="text" name="duration" placeholder="30d" required autocomplete="off">
           </label>
-          <label data-field class="col-6" style="align-self:flex-end">
-            <input type="checkbox" name="after" value="on"> Delete media <strong>newer</strong> than this (default is older)
+          <label data-field class="col-6">
+            Direction
+            <select name="direction">
+              <option value="older">Older than duration</option>
+              <option value="newer">Newer than duration</option>
+            </select>
           </label>
         </div>
+        <label data-field>
+          <input type="checkbox" name="include_local" value="on"> Also delete local media (--yes-i-want-to-delete-local-media)
+        </label>
         <footer class="hstack">
-          <button type="submit" data-variant="danger">Purge remote media</button>
+          <button type="submit" data-variant="danger">Purge</button>
         </footer>
       </form>
     </article>
@@ -110,7 +183,7 @@
     <article class="card mb-6">
       <header>
         <h3>Delete all media from user <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Remove every file uploaded by a single account.</small></p>
+        <p><small class="muted">Remove every file uploaded by a single local account.</small></p>
       </header>
       <form method="post" action="/media/delete-from-user"
             onsubmit="return confirm('Delete every file uploaded by this user? This cannot be undone.')">
@@ -120,6 +193,26 @@
         </label>
         <footer class="hstack">
           <button type="submit" data-variant="danger">Delete user's media</button>
+        </footer>
+      </form>
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Delete all media from server <span class="badge" data-variant="danger">destructive</span></h3>
+        <p><small class="muted">Remove every cached file from a remote server.</small></p>
+      </header>
+      <form method="post" action="/media/delete-from-server"
+            onsubmit="return confirm('Delete every file from this server? This cannot be undone.')">
+        <label data-field>
+          Server name
+          <input type="text" name="server" placeholder="matrix.org" required autocomplete="off">
+        </label>
+        <label data-field>
+          <input type="checkbox" name="include_local" value="on"> Also delete local media
+        </label>
+        <footer class="hstack">
+          <button type="submit" data-variant="danger">Delete from server</button>
         </footer>
       </form>
     </article>

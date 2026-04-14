@@ -25,7 +25,10 @@
             <input type="search" x-model.debounce.150ms="q" placeholder="Search mxid…" autocomplete="off">
           </label>
         </div>
-        <div class="col-6 flex gap-4" style="justify-content:flex-end">
+        <div class="col-6 flex gap-4" style="justify-content:flex-end;align-items:flex-end">
+          <button x-show="selected.length > 0" x-cloak data-variant="danger"
+                  commandfor="dlg-deactivate-all" command="show-modal"
+                  x-text="`Deactivate (${selected.length})`"></button>
           <label data-field style="margin:0">
             <select x-model="status">
               <option value="all">All users</option>
@@ -45,6 +48,7 @@
       <table id="users-table">
         <thead>
           <tr>
+            <th style="width:32px"><input type="checkbox" @change="toggleAll($event.target.checked)" :checked="allVisibleSelected()"></th>
             <th>MXID</th>
             <th>Role</th>
             <th>Last active</th>
@@ -55,29 +59,26 @@
           {% for u in users %}
           <tr data-mxid="{{ u.mxid }}" data-admin="{{ u.is_admin }}"
             data-last-active="{{ u.last_active | default(value='') }}">
+            <td><input type="checkbox" :value="'{{ u.mxid }}'" x-model="selected"></td>
             <td>
-              <a href="/users/{{ u.mxid | urlencode }}">{{ u.mxid | split(pat=":") | first | trim_start_matches(pat="@")
-                }}</a>
+              <a href="/users/{{ u.mxid | urlencode }}">{{ u.mxid | split(pat=":") | first | trim_start_matches(pat="@") }}</a>
               <br><small class="muted">{{ u.mxid }}</small>
             </td>
             <td>
               {% if u.is_admin %}
-              <span class="badge" data-variant="success">admin</span>
+                <span class="badge" data-variant="success">admin</span>
               {% else %}
-              <span class="badge outline">user</span>
+                <span class="badge outline">user</span>
               {% endif %}
             </td>
             <td>{% if u.last_active %}<small>{{ u.last_active }}</small>{% else %}<small>—</small>{% endif %}</td>
             <td>
               <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
                 <button class="outline" @click="openReset('{{ u.mxid }}')">Reset password</button>
-
                 {% if not u.is_admin %}
-                <button popovertarget="pop-mk" class="outline" @click="target = '{{ u.mxid }}'">Make admin</button>
+                  <button popovertarget="pop-mk" class="outline" @click="target = '{{ u.mxid }}'">Make admin</button>
                 {% endif %}
-
-                <button popovertarget="pop-da" class="outline" data-variant="danger"
-                  @click="target = '{{ u.mxid }}'">Deactivate</button>
+                <button popovertarget="pop-da" class="outline" data-variant="danger" @click="target = '{{ u.mxid }}'">Deactivate</button>
               </div>
             </td>
           </tr>
@@ -123,16 +124,43 @@
   <article class="card" popover id="pop-da">
     <header>
       <h4>Deactivate <span x-text="target"></span>?</h4>
-      <p>This cannot be undone. The user will be removed from all rooms.</p>
+      <p>This cannot be undone. By default the user is removed from all rooms.</p>
     </header>
-    <br />
-    <footer>
-      <button type="button" class="outline small" popovertarget="pop-da">Cancel</button>
-      <form method="post" :action="`/users/${encodeURIComponent(target)}/deactivate`" style="display:inline">
+    <form method="post" :action="`/users/${encodeURIComponent(target)}/deactivate`">
+      <label data-field>
+        <input type="checkbox" name="no_leave_rooms" value="on"> Keep user in their rooms (don't leave)
+      </label>
+      <footer>
+        <button type="button" class="outline small" popovertarget="pop-da">Cancel</button>
         <button type="submit" data-variant="danger" class="small">Deactivate</button>
-      </form>
-    </footer>
+      </footer>
+    </form>
   </article>
+
+  <dialog id="dlg-deactivate-all">
+    <form method="post" action="/users/deactivate-all">
+      <header>
+        <h3>Deactivate selected users</h3>
+        <p><small>This cannot be undone. Users will be removed from all rooms by default.</small></p>
+      </header>
+      <section>
+        <label data-field>
+          Users (one mxid per line)
+          <textarea name="mxids" rows="8" required :value="selected.join('\n')"></textarea>
+        </label>
+        <label data-field>
+          <input type="checkbox" name="no_leave_rooms" value="on"> Keep users in their rooms (--no-leave-rooms)
+        </label>
+        <label data-field>
+          <input type="checkbox" name="force" value="on"> Also include admin accounts (--force)
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-deactivate-all" command="close">Cancel</button>
+        <button type="submit" data-variant="danger">Deactivate</button>
+      </footer>
+    </form>
+  </dialog>
 </main>
 
 <dialog id="dlg-create">
@@ -141,14 +169,17 @@
       <h3>Create user</h3>
       <p><small>New local account on {{ homeserver }}.</small></p>
     </header>
-    <section>
+    <section x-data="{ gen: false }">
       <label data-field>
         Username (localpart)
         <input type="text" name="username" placeholder="alice" required autocomplete="off">
       </label>
-      <label data-field>
+      <label data-field x-show="!gen">
         Password
-        <input type="password" name="password" required autocomplete="new-password">
+        <input type="password" name="password" autocomplete="new-password">
+      </label>
+      <label data-field>
+        <input type="checkbox" name="generate" value="on" x-model="gen"> Autogenerate password
       </label>
     </section>
     <footer>
@@ -161,7 +192,7 @@
 <script>
   function usersPage() {
     return {
-      q: '', status: 'all', sort: 'mxid', target: '',
+      q: '', status: 'all', sort: 'mxid', target: '', selected: [],
       rows: [],
       init() {
         this.rows = Array.from(this.$el.querySelectorAll('#users-table tbody tr'));
@@ -187,6 +218,21 @@
           ? (b.dataset.lastActive || '').localeCompare(a.dataset.lastActive || '')
           : a.dataset.mxid.localeCompare(b.dataset.mxid)
         ).forEach(r => tbody.appendChild(r));
+      },
+
+      visibleRows() { return this.rows.filter(r => !r.hidden); },
+      allVisibleSelected() {
+        const vis = this.visibleRows();
+        return vis.length > 0 && vis.every(r => this.selected.includes(r.dataset.mxid));
+      },
+      toggleAll(checked) {
+        const vis = this.visibleRows().map(r => r.dataset.mxid);
+        if (checked) {
+          const set = new Set([...this.selected, ...vis]);
+          this.selected = Array.from(set);
+        } else {
+          this.selected = this.selected.filter(m => !vis.includes(m));
+        }
       },
 
       openReset(mxid) { this.target = mxid; this.$refs.rp.showModal(); },

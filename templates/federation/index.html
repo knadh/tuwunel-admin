@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+{% block title %}Federation · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Federation</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main>
+  <article>
+    <header class="mb-6">
+      <h1 style="margin:0">Federation</h1>
+      <p class="mt-2"><small class="muted">Tools for diagnosing and managing this server's federation with other homeservers.</small></p>
+    </header>
+
+    {% include "partials/flash.html" %}
+
+    <article class="card mb-6">
+      <header>
+        <h3>Incoming federation{% if overview.incoming %} ({{ overview.incoming | length }}){% endif %}</h3>
+        <p><small class="muted">Rooms currently processing incoming PDUs.</small></p>
+      </header>
+      {% if overview.incoming %}
+        <table>
+          <thead><tr><th>Room ID</th></tr></thead>
+          <tbody>
+            {% for rid in overview.incoming %}
+              <tr>
+                <td><a href="/rooms/{{ rid | urlencode }}"><code>{{ rid }}</code></a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p><small class="muted">No rooms reported. (Command may be temporarily disabled on this server.)</small></p>
+      {% endif %}
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Fetch support info</h3>
+        <p><small class="muted">Retrieve <code>/.well-known/matrix/support</code> from a server for moderation contact details.</small></p>
+      </header>
+      <form method="post" action="/federation/fetch-well-known" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end">
+        <label data-field style="flex:1 1 300px;margin:0">
+          Server name
+          <input type="text" name="server" placeholder="matrix.org" required autocomplete="off">
+        </label>
+        <footer class="hstack">
+          <button type="submit" class="outline">Fetch</button>
+        </footer>
+      </form>
+    </article>
+
+    <article class="card mb-6">
+      <header>
+        <h3>Remote user → shared rooms</h3>
+        <p><small class="muted">List rooms we share with a remote user.</small></p>
+      </header>
+      <form method="post" action="/federation/remote-user-in-rooms" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end">
+        <label data-field style="flex:1 1 300px;margin:0">
+          User ID
+          <input type="text" name="user_id" placeholder="@alice:matrix.org" required autocomplete="off">
+        </label>
+        <footer class="hstack">
+          <button type="submit" class="outline">Lookup</button>
+        </footer>
+      </form>
+
+      {% if tool_rooms %}
+        <hr class="mt-4" />
+        <h4 class="mt-4">{{ tool_title }} ({{ tool_rooms | length }})</h4>
+        <table>
+          <tbody>
+            {% for rid in tool_rooms %}
+              <tr>
+                <td><a href="/rooms/{{ rid | urlencode }}"><code>{{ rid }}</code></a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% elif tool_reply_raw %}
+        <hr class="mt-4" />
+        <h4 class="mt-4">{{ tool_title }}</h4>
+        <div>{{ tool_reply_html | safe }}</div>
+      {% endif %}
+    </article>
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
+    {% endif %}
+  </article>
+</main>
+{% endblock %}

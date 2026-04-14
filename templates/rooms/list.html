@@ -11,8 +11,14 @@
 
 <main x-data="roomsPage()">
   <article>
-    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;">
+    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;flex-wrap:wrap">
       <h1 style="margin:0">Rooms{% if rooms %} ({{ rooms | length }}){% endif %}</h1>
+      <form method="get" action="/rooms/find-by-alias" class="flex gap-2" style="align-items:flex-end">
+        <label data-field style="margin:0">
+          <input type="search" name="alias" placeholder="#alias:server or localpart" autocomplete="off" required>
+        </label>
+        <button type="submit" class="outline">Find by alias →</button>
+      </form>
     </header>
 
     {% include "partials/flash.html" %}
@@ -22,10 +28,10 @@
         <div class="row mb-4">
           <div class="col-6">
             <label data-field style="margin:0">
-              <input type="search" x-model.debounce.150ms="q" placeholder="Search room id or name…" autocomplete="off">
+              <input type="search" x-model.debounce.150ms="q" placeholder="Search room id, name or alias…" autocomplete="off">
             </label>
           </div>
-          <div class="col-6 flex gap-4" style="justify-content:flex-end">
+          <div class="col-6 flex gap-4" style="justify-content:flex-end;flex-wrap:wrap">
             <label data-field style="margin:0">
               <select x-model="kind">
                 <option value="room">Rooms</option>
@@ -48,6 +54,13 @@
               </select>
             </label>
             <label data-field style="margin:0">
+              <select x-model="directory">
+                <option value="all">All directory</option>
+                <option value="published">Published</option>
+                <option value="unpublished">Unpublished</option>
+              </select>
+            </label>
+            <label data-field style="margin:0">
               <select x-model="sort">
                 <option value="name">Sort: Name (A→Z)</option>
                 <option value="members">Sort: Members (most)</option>
@@ -60,6 +73,7 @@
         <table id="rooms-table">
           <thead>
             <tr>
+              <th style="width:32px"><input type="checkbox" @change="toggleAll($event.target.checked)" :checked="allVisibleSelected()"></th>
               <th>Name</th>
               <th style="text-align:right">Members</th>
               <th>Status</th>
@@ -68,7 +82,10 @@
           </thead>
           <tbody>
             {% for r in rooms %}
-              <tr data-room-id="{{ r.room_id }}" data-name="{{ r.name }}" data-members="{{ r.members }}" data-banned="{{ r.banned }}" data-federated="{{ r.federated }}">
+              <tr data-room-id="{{ r.room_id }}" data-name="{{ r.name }}" data-members="{{ r.members }}"
+                  data-banned="{{ r.banned }}" data-federated="{{ r.federated }}"
+                  data-published="{{ r.published }}">
+                <td><input type="checkbox" :value="'{{ r.room_id }}'" x-model="selected"></td>
                 <td>
                   <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="muted">(unnamed)</em>{% endif %}</a>
                   <br><small class="muted">{{ r.room_id }}</small>
@@ -79,9 +96,10 @@
                     {% if r.banned %}
                       <span class="badge" data-variant="danger">banned</span>
                     {% else %}
-                      <span class="badge outline">ok</span>
+                      <span class="badge" data-variant="success">OK</span>
                     {% endif %}
                     {% if r.federated %}<span class="badge outline">federated</span>{% endif %}
+                    {% if r.published %}<span class="badge outline">published</span>{% endif %}
                   </div>
                 </td>
                 <td>
@@ -98,11 +116,38 @@
             {% endfor %}
           </tbody>
         </table>
+
+        <nav class="flex gap-4 mt-4 mb-6" style="justify-content:space-between;align-items:center">
+          <small class="muted">Page {{ page }}</small>
+          <div class="flex gap-2">
+            {% if page > 1 %}
+              <a class="outline" role="button" href="?page={{ page - 1 }}{% if exclude_banned %}&exclude_banned=on{% endif %}{% if exclude_disabled %}&exclude_disabled=on{% endif %}">← Prev</a>
+            {% endif %}
+            {% if rooms | length >= 30 %}
+              <a class="outline" role="button" href="?page={{ page + 1 }}{% if exclude_banned %}&exclude_banned=on{% endif %}{% if exclude_disabled %}&exclude_disabled=on{% endif %}">Next →</a>
+            {% endif %}
+          </div>
+        </nav>
       </section>
+
+      <hr />
+      <article class="card mt-6">
+        <header>
+          <h3>Prune empty rooms <span class="badge" data-variant="danger">destructive</span></h3>
+          <p><small class="muted">Delete every room with zero joined members. Force includes rooms with remote members only.</small></p>
+        </header>
+        <form method="post" action="/rooms/prune-empty"
+              onsubmit="return confirm('Prune empty rooms? This cannot be undone.')">
+          <label data-field>
+            <input type="checkbox" name="force" value="on"> Force (include rooms with only remote members)
+          </label>
+          <footer class="hstack">
+            <button type="submit" class="outline" data-variant="danger">Prune</button>
+          </footer>
+        </form>
+      </article>
     {% else %}
-      <section>
-        <p class="muted">No rooms parsed from the bot reply.</p>
-      </section>
+      <section><p class="muted">No rooms found.</p></section>
     {% endif %}
 
     {% if log %}
@@ -110,31 +155,37 @@
     {% endif %}
   </article>
 
-  <article class="card" popover id="pop-ban">
+  <div x-show="selected.length > 0" x-transition
+       style="position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:1rem;margin-top:1rem;"
+       class="flex gap-4" :style="selected.length === 0 ? 'display:none' : ''">
+    <strong x-text="`${selected.length} selected`"></strong>
+    <button class="outline" @click="selected = []">Clear</button>
+    <button data-variant="danger" commandfor="dlg-ban-list" command="show-modal">Ban selected</button>
+  </div>
+
+  <article class="card popover" popover id="pop-ban">
     <header>
       <h4>Ban this room?</h4>
       <p x-show="targetName"><span x-text="targetName"></span></p>
       <p><small class="muted" x-text="target"></small></p>
     </header>
-    <br />
-    <footer>
+    <footer class="hstack">
       <button type="button" class="outline small" popovertarget="pop-ban">Cancel</button>
-      <form method="post" :action="`/rooms/${encodeURIComponent(target)}/ban`" style="display:inline">
+      <form method="post" :action="`/rooms/${encodeURIComponent(target)}/ban`">
         <button type="submit" data-variant="danger" class="small">Ban</button>
       </form>
     </footer>
   </article>
 
-  <article class="card" popover id="pop-unban">
+  <article class="card popover" popover id="pop-unban">
     <header>
       <h4>Unban this room?</h4>
       <p x-show="targetName"><span x-text="targetName"></span></p>
       <p><small class="muted" x-text="target"></small></p>
     </header>
-    <br />
-    <footer>
+    <footer class="hstack">
       <button type="button" class="outline small" popovertarget="pop-unban">Cancel</button>
-      <form method="post" :action="`/rooms/${encodeURIComponent(target)}/unban`" style="display:inline">
+      <form method="post" :action="`/rooms/${encodeURIComponent(target)}/unban`">
         <button type="submit" class="small">Unban</button>
       </form>
     </footer>
@@ -159,16 +210,36 @@
       </footer>
     </form>
   </dialog>
+
+  <dialog id="dlg-ban-list">
+    <form method="post" action="/rooms/ban-list">
+      <header>
+        <h3>Ban selected rooms</h3>
+        <p><small>Cannot be undone — each room will be banned and local users evicted.</small></p>
+      </header>
+      <section>
+        <label data-field>
+          Rooms (one per line)
+          <textarea name="rooms" rows="8" required x-text="selected.join('\n')"></textarea>
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-ban-list" command="close">Cancel</button>
+        <button type="submit" data-variant="danger">Ban</button>
+      </footer>
+    </form>
+  </dialog>
 </main>
 
 <script>
 function roomsPage() {
   return {
-    q: '', kind: 'room', status: 'all', federation: 'all', sort: 'name', target: '', targetName: '',
+    q: '', kind: 'room', status: 'all', federation: 'all', directory: 'all',
+    sort: 'name', target: '', targetName: '', selected: [],
     rows: [],
     init() {
       this.rows = Array.from(this.$el.querySelectorAll('#rooms-table tbody tr'));
-      ['q', 'kind', 'status', 'federation', 'sort'].forEach(k => this.$watch(k, () => this.apply()));
+      ['q', 'kind', 'status', 'federation', 'directory', 'sort'].forEach(k => this.$watch(k, () => this.apply()));
       this.apply();
     },
     apply() {
@@ -176,12 +247,14 @@ function roomsPage() {
       const st = this.status;
       const kd = this.kind;
       const fd = this.federation;
+      const dir = this.directory;
       this.rows.forEach(r => {
         const rid = r.dataset.roomId.toLowerCase();
         const name = (r.dataset.name || '').toLowerCase();
         const members = +r.dataset.members || 0;
         const banned = r.dataset.banned === 'true';
         const federated = r.dataset.federated === 'true';
+        const published = r.dataset.published === 'true';
         const isDm = members <= 2;
         const statusOk = st === 'all'
           || (st === 'banned' && banned)
@@ -192,22 +265,34 @@ function roomsPage() {
         const fedOk = fd === 'all'
           || (fd === 'federated' && federated)
           || (fd === 'local' && !federated);
-        r.hidden = !((rid.includes(term) || name.includes(term)) && statusOk && kindOk && fedOk);
+        const dirOk = dir === 'all'
+          || (dir === 'published' && published)
+          || (dir === 'unpublished' && !published);
+        r.hidden = !((rid.includes(term) || name.includes(term)) && statusOk && kindOk && fedOk && dirOk);
       });
       const tbody = this.rows[0]?.parentNode;
       if (!tbody) return;
       const mode = this.sort;
       [...this.rows].sort((a, b) => {
-        if (mode === 'members') {
-          return (+b.dataset.members || 0) - (+a.dataset.members || 0);
-        }
-        if (mode === 'room-id') {
-          return a.dataset.roomId.localeCompare(b.dataset.roomId);
-        }
+        if (mode === 'members') return (+b.dataset.members || 0) - (+a.dataset.members || 0);
+        if (mode === 'room-id') return a.dataset.roomId.localeCompare(b.dataset.roomId);
         const an = a.dataset.name || a.dataset.roomId;
         const bn = b.dataset.name || b.dataset.roomId;
         return an.localeCompare(bn);
       }).forEach(r => tbody.appendChild(r));
+    },
+    visibleRows() { return this.rows.filter(r => !r.hidden); },
+    allVisibleSelected() {
+      const vis = this.visibleRows();
+      return vis.length > 0 && vis.every(r => this.selected.includes(r.dataset.roomId));
+    },
+    toggleAll(checked) {
+      const vis = this.visibleRows().map(r => r.dataset.roomId);
+      if (checked) {
+        this.selected = Array.from(new Set([...this.selected, ...vis]));
+      } else {
+        this.selected = this.selected.filter(r => !vis.includes(r));
+      }
     },
     openDelete(id, name) { this.target = id; this.targetName = name; this.$refs.del.showModal(); },
   };

@@ -1,21 +1,26 @@
 use axum::{
     extract::{Form, Path, State},
     response::{IntoResponse, Redirect, Response},
-    Extension,
+    Extension, Json,
 };
 use serde::Deserialize;
+use serde_json::json;
 use std::sync::Arc;
 use tower_sessions::Session;
 
 use super::{
-    base_ctx, insert_flash, markdown_to_html, render, run_and_flash, set_flash, take_flash,
+    base_ctx, insert_flash, install_log, markdown_to_html, render, run_and_flash, set_flash,
+    take_flash,
 };
 use crate::{matrix, users, Ctx};
 
 #[derive(Deserialize)]
 pub struct CreateUserForm {
     pub username: String,
-    pub password: String,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub generate: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -36,6 +41,27 @@ pub struct RoomIdForm {
 #[derive(Deserialize)]
 pub struct EventIdForm {
     pub event_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct DeactivateForm {
+    #[serde(default)]
+    pub no_leave_rooms: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct DeactivateAllForm {
+    pub mxids: String,
+    #[serde(default)]
+    pub no_leave_rooms: Option<String>,
+    #[serde(default)]
+    pub force: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct TagForm {
+    pub verb: String,
+    pub tag: String,
 }
 
 pub async fn list(
@@ -61,19 +87,52 @@ pub async fn create(
     Form(f): Form<CreateUserForm>,
 ) -> Response {
     let username = f.username.trim();
-    if username.is_empty() || f.password.is_empty() {
-        set_flash(&session, "error", "Username and password are required.").await;
+    if username.is_empty() {
+        set_flash(&session, "error", "Username is required.").await;
         return Redirect::to("/users").into_response();
     }
-    let cmd = format!("users create-user {username} {}", f.password);
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Created user {username}"),
-    )
-    .await;
+    let generate = matches!(f.generate.as_deref(), Some("on" | "true" | "1" | "yes"));
+    let password = f.password.as_deref().unwrap_or("").trim();
+    let autogen = generate || password.is_empty();
+    let cmd = if autogen {
+        format!("users create-user {username}")
+    } else {
+        format!("users create-user {username} {password}")
+    };
+
+    if autogen {
+        // Capture the bot's reply so the generated password lands in the flash.
+        match st.matrix.run_admin(&sess, &cmd).await {
+            Ok(r) if !matrix::is_error_reply(&r.body) => {
+                set_flash(
+                    &session,
+                    "success",
+                    format!("Created user {username}.\n\n{}", r.body.trim()),
+                )
+                .await;
+            }
+            Ok(r) => {
+                set_flash(
+                    &session,
+                    "error",
+                    format!("Create failed: {}", r.body.trim()),
+                )
+                .await;
+            }
+            Err(e) => {
+                set_flash(&session, "error", format!("{e:#}")).await;
+            }
+        }
+    } else {
+        run_and_flash(
+            &st,
+            &sess,
+            &session,
+            &cmd,
+            &format!("Created user {username}"),
+        )
+        .await;
+    }
     Redirect::to("/users").into_response()
 }
 
@@ -90,8 +149,10 @@ pub async fn detail(
     match users::detail(&st.matrix, &sess, &mxid).await {
         Ok(d) => {
             let raw_html = markdown_to_html(&d.joined_rooms_raw);
+            let log = d.log.clone();
             ctx.insert("detail", &d);
             ctx.insert("joined_rooms_html", &raw_html);
+            install_log(&mut ctx, flash.as_ref(), log);
         }
         Err(e) => ctx.insert("error", &format!("{e:#}")),
     }
@@ -127,9 +188,58 @@ pub async fn deactivate(
     session: Session,
     Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
+    Form(f): Form<DeactivateForm>,
 ) -> Response {
-    let cmd = format!("users deactivate {mxid}");
+    let cmd = if matches!(
+        f.no_leave_rooms.as_deref(),
+        Some("on" | "true" | "1" | "yes")
+    ) {
+        format!("users deactivate --no-leave-rooms {mxid}")
+    } else {
+        format!("users deactivate {mxid}")
+    };
     run_and_flash(&st, &sess, &session, &cmd, &format!("Deactivated {mxid}")).await;
+    Redirect::to("/users").into_response()
+}
+
+pub async fn deactivate_all(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Form(f): Form<DeactivateAllForm>,
+) -> Response {
+    let mxids: Vec<&str> = f
+        .mxids
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    if mxids.is_empty() {
+        set_flash(&session, "error", "Select at least one user.").await;
+        return Redirect::to("/users").into_response();
+    }
+    let mut cmd = String::from("users deactivate-all");
+    if matches!(
+        f.no_leave_rooms.as_deref(),
+        Some("on" | "true" | "1" | "yes")
+    ) {
+        cmd.push_str(" --no-leave-rooms");
+    }
+    if matches!(f.force.as_deref(), Some("on" | "true" | "1" | "yes")) {
+        cmd.push_str(" --force");
+    }
+    cmd.push_str("\n```\n");
+    cmd.push_str(&mxids.join("\n"));
+    cmd.push_str("\n```");
+    let n = mxids.len();
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Deactivated {n} user(s)"),
+    )
+    .await;
     Redirect::to("/users").into_response()
 }
 
@@ -214,4 +324,95 @@ pub async fn redact_event(
     let cmd = format!("users redact-event {evt}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Redacted {evt}")).await;
     Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn delete_device(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Path((mxid, device_id)): Path<(String, String)>,
+) -> Response {
+    let cmd = format!("users delete-device {mxid} {device_id}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Deleted device {device_id}"),
+    )
+    .await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn force_promote(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Path((mxid, room_id)): Path<(String, String)>,
+) -> Response {
+    let cmd = format!("users force-promote {mxid} {room_id}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Promoted {mxid} in {room_id}"),
+    )
+    .await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn force_demote(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Path((mxid, room_id)): Path<(String, String)>,
+) -> Response {
+    let cmd = format!("users force-demote {mxid} {room_id}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Demoted {mxid} in {room_id}"),
+    )
+    .await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn room_tag(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Path((mxid, room_id)): Path<(String, String)>,
+    Form(f): Form<TagForm>,
+) -> Response {
+    let tag = f.tag.trim();
+    if tag.is_empty() {
+        set_flash(&session, "error", "Tag is required.").await;
+        return Redirect::to(&format!("/users/{mxid}")).into_response();
+    }
+    let cmd = match f.verb.as_str() {
+        "delete" => format!("users delete-room-tag {mxid} {room_id} {tag}"),
+        _ => format!("users put-room-tag {mxid} {room_id} {tag}"),
+    };
+    let msg = if f.verb == "delete" {
+        format!("Removed tag {tag} from {room_id}")
+    } else {
+        format!("Tagged {room_id} as {tag}")
+    };
+    run_and_flash(&st, &sess, &session, &cmd, &msg).await;
+    Redirect::to(&format!("/users/{mxid}")).into_response()
+}
+
+pub async fn get_room_tags(
+    State(st): State<Arc<Ctx>>,
+    Extension(sess): Extension<matrix::Session>,
+    Path((mxid, room_id)): Path<(String, String)>,
+) -> Response {
+    let cmd = format!("users get-room-tags {mxid} {room_id}");
+    match st.matrix.run_admin(&sess, &cmd).await {
+        Ok(r) => Json(json!({ "body": r.body })).into_response(),
+        Err(e) => Json(json!({ "error": format!("{e:#}") })).into_response(),
+    }
 }

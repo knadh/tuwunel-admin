@@ -25,6 +25,9 @@ pub struct UserDetail {
     pub joined_rooms: Option<Vec<parse::JoinedRoom>>,
     /// Raw reply body, always present for fallback display and debugging.
     pub joined_rooms_raw: String,
+    /// Devices (from `query users list-devices-metadata`), if parseable.
+    pub devices: Vec<parse::DeviceRow>,
+    pub log: Vec<matrix::LogEntry>,
 }
 
 fn localpart(mxid: &str) -> String {
@@ -80,13 +83,38 @@ pub async fn detail(mx: &matrix::Matrix, sess: &matrix::Session, mxid: &str) -> 
             last_active: None,
         });
 
-    let reply = mx
-        .run_admin(sess, &format!("users list-joined-rooms {mxid}"))
-        .await?;
+    let mut log = Vec::new();
+
+    let cmd = format!("users list-joined-rooms {mxid}");
+    let reply = mx.run_admin(sess, &cmd).await?;
+    log.push(matrix::LogEntry {
+        cmd,
+        body: reply.body.clone(),
+        is_error: matrix::is_error_reply(&reply.body),
+    });
     let joined_rooms = parse::list_joined_rooms(&reply.body);
+
+    let devices = match mx
+        .run_admin(sess, &format!("query users list-devices-metadata {mxid}"))
+        .await
+    {
+        Ok(r) => {
+            let parsed = parse::list_devices(&r.body).unwrap_or_default();
+            log.push(matrix::LogEntry {
+                cmd: format!("query users list-devices-metadata {mxid}"),
+                body: r.body,
+                is_error: false,
+            });
+            parsed
+        }
+        Err(_) => Vec::new(),
+    };
+
     Ok(UserDetail {
         row,
         joined_rooms,
         joined_rooms_raw: reply.body,
+        devices,
+        log,
     })
 }

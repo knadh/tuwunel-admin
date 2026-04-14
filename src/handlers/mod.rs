@@ -1,6 +1,8 @@
 pub mod appservices;
+pub mod federation;
 pub mod media;
 pub mod rooms;
+pub mod server;
 pub mod tokens;
 pub mod users;
 

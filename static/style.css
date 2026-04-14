@@ -49,3 +49,7 @@ main pre {
 .console-log {
   margin-top: var(--space-16);
 }
+
+.badge {
+  text-transform: uppercase;
+}

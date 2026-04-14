@@ -20,14 +20,22 @@
         <h1 style="margin:0">{{ room_id }}</h1>
       {% endif %}
       {% if detail %}
-        <p class="mt-2 flex gap-2" style="align-items:center">
+        <p class="mt-2 flex gap-2" style="align-items:center;flex-wrap:wrap">
           {% if detail.row.banned %}
             <span class="badge" data-variant="danger">banned</span>
           {% else %}
             <span class="badge outline">ok</span>
           {% endif %}
           {% if detail.row.federated %}<span class="badge outline">federated</span>{% endif %}
+          {% if detail.row.published %}<span class="badge outline">published</span>{% endif %}
+          {% if detail.row.members %}<small class="muted">{{ detail.row.members }} members</small>{% endif %}
         </p>
+        {% if detail.topic %}
+          <details class="mt-4">
+            <summary><small>Topic</small></summary>
+            <p class="mt-2"><small>{{ detail.topic }}</small></p>
+          </details>
+        {% endif %}
       {% endif %}
     </header>
 
@@ -46,6 +54,64 @@
           {% endif %}
           <button class="outline" data-variant="danger" commandfor="dlg-del" command="show-modal">Delete</button>
         </div>
+      </section>
+
+      <hr />
+      <section class="mb-6 mt-6">
+        <h2 class="mb-4">Aliases {% if detail.aliases %}({{ detail.aliases | length }}){% endif %}</h2>
+        {% if detail.aliases %}
+          <table>
+            <tbody>
+              {% for a in detail.aliases %}
+                <tr>
+                  <td><code>{{ a }}</code></td>
+                  <td style="text-align:right">
+                    <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases/remove"
+                          onsubmit="return confirm('Remove alias {{ a }}?')">
+                      <input type="hidden" name="localpart" value="{{ a | split(pat=':') | first | trim_start_matches(pat='#') }}">
+                      <button type="submit" class="outline small" data-variant="danger">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p><small class="muted">No aliases point at this room.</small></p>
+        {% endif %}
+        <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases" class="flex gap-2 mt-4" style="flex-wrap:wrap;align-items:flex-end">
+          <label data-field style="margin:0;flex:1 1 240px">
+            <small class="muted">Add alias (localpart only — without `#` and server)</small>
+            <input type="text" name="localpart" placeholder="roomname" required autocomplete="off">
+          </label>
+          <label data-field style="margin:0">
+            <input type="checkbox" name="force" value="on"> Force
+          </label>
+          <button type="submit" class="outline">Add alias</button>
+        </form>
+      </section>
+
+      <hr />
+      <section class="mb-6 mt-6">
+        <h2 class="mb-4">Directory</h2>
+        <p class="mb-4">
+          {% if detail.row.published %}
+            <span class="badge outline">published</span>
+            This room appears in the public directory on {{ homeserver }}.
+          {% else %}
+            <span class="badge" data-variant="danger">unpublished</span>
+            This room is not in the public directory.
+          {% endif %}
+        </p>
+        {% if detail.row.published %}
+          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/unpublish" style="display:inline">
+            <button type="submit" class="outline" data-variant="danger">Unpublish</button>
+          </form>
+        {% else %}
+          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/publish" style="display:inline">
+            <button type="submit" class="outline">Publish</button>
+          </form>
+        {% endif %}
       </section>
 
       <hr />
@@ -71,6 +137,30 @@
             </form>
           {% endif %}
         </div>
+      </section>
+
+      <hr />
+      <section class="mb-6 mt-6">
+        <h2 class="mb-4">Force-join local users</h2>
+        <p><small class="muted">Force a list of local users — or all local users — into this room. Guards against accidents with an explicit confirm.</small></p>
+        <form method="post" action="/rooms/{{ room_id | urlencode }}/force-join-users"
+              x-data="{ allUsers: false }"
+              onsubmit="return confirm('Force-join users to this room? This bypasses normal join rules.')">
+          <label data-field>
+            <input type="checkbox" name="all" value="on" x-model="allUsers"> Join <strong>every</strong> local user to this room
+          </label>
+          <label data-field x-show="!allUsers">
+            User list (one mxid per line)
+            <textarea name="mxids" rows="6" placeholder="@alice:server
+@bob:server"></textarea>
+          </label>
+          <label data-field>
+            <input type="checkbox" name="confirm" value="on" required> Yes, I want to do this
+          </label>
+          <footer class="hstack">
+            <button type="submit" class="outline" data-variant="danger">Force-join</button>
+          </footer>
+        </form>
       </section>
 
       <hr />
