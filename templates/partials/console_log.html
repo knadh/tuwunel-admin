@@ -1,4 +1,4 @@
-<details class="console-log"{% if log_has_error %} open{% endif %}>
+<details id="console-log" class="console-log"{% if log_has_error or log_open %} open{% endif %}>
   <summary>
     <small>
       Console log ({{ log | length }}){% if log_has_error %} <span class="badge" data-variant="danger">errors</span>{% endif %}

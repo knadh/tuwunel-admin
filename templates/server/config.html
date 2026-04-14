@@ -1,0 +1,68 @@
+{% extends "layout.html" %}
+{% block title %}Server · Config · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Server / Config</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main>
+  <article>
+    <header class="mb-4">
+      <h1 style="margin:0">Config</h1>
+      <p class="mt-2" style="margin:0"><small class="muted">Boot-time config as loaded. Edit the on-disk config and reload to change values.</small></p>
+    </header>
+
+    {% include "partials/flash.html" %}
+
+    <article class="card mb-6">
+      <header>
+        <h3>Reload</h3>
+      </header>
+      <form method="post" action="/server/reload-config"
+            onsubmit="return confirm('Reload server config? Non-reloadable fields will reject the reload and keep the current config active.')">
+        <label data-field style="flex:1 1 240px;margin:0">
+          <small class="muted">Config TOML path (optional)</small>
+          <input type="text" name="path" placeholder="" autocomplete="off">
+          <small data-hint>Reload config file without restarting the server</small>
+        </label>
+        <footer>
+          <br />
+          <p><button type="submit">Reload config</button></p>
+        </footer>
+      </form>
+    </article>
+
+    {% if config and config.rows %}
+      <article class="card mb-6">
+        <header>
+          <h3>Configuration ({{ config.rows | length }})</h3>
+        </header>
+        <table class="kv-table">
+          <thead>
+            <tr>
+              <th scope="col">Key</th>
+              <th scope="col">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in config.rows %}
+              <tr>
+                <th scope="row"><code>{{ row.0 }}</code></th>
+                <td><code>{{ row.1 }}</code></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% endif %}
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
+    {% endif %}
+  </article>
+</main>
+{% endblock %}

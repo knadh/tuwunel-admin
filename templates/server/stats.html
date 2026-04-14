@@ -1,0 +1,79 @@
+{% extends "layout.html" %}
+{% block title %}Server · Stats · tuwunel-admin{% endblock %}
+{% block body_attrs %}data-sidebar-layout{% endblock %}
+
+{% block body %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin / Server / Stats</strong>
+</nav>
+{% include "_sidebar.html" %}
+
+<main>
+  <article>
+    <header class="mb-4">
+      <h1 style="margin:0">Stats</h1>
+      {% if stats and stats.uptime %}
+        <p class="mt-2" style="margin:0"><small class="muted">Uptime: {{ stats.uptime }}</small></p>
+      {% endif %}
+    </header>
+
+    {% include "partials/flash.html" %}
+
+    {% if stats %}
+      {% for section in stats.memory_sections %}
+        <article class="card mb-6">
+          <header>
+            <h3>{{ section.0 }} memory</h3>
+          </header>
+          <table class="kv-table">
+            <tbody>
+              {% for row in section.1 %}
+                <tr>
+                  <th scope="row">{{ row.0 }}</th>
+                  <td><code>{{ row.1 }}</code></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </article>
+      {% endfor %}
+
+      {% if stats.features %}
+        <article class="card mb-6">
+          <header>
+            <h3>Features ({{ stats.features | length }})</h3>
+            <p><small class="muted">Compile-time feature flags.</small></p>
+          </header>
+          <table class="kv-table">
+            <tbody>
+              {% for f in stats.features %}
+                <tr>
+                  <th scope="row">{{ f.0 }}</th>
+                  <td>
+                    {% if f.1 %}
+                      <span class="badge" data-variant="success">enabled</span>
+                    {% else %}
+                      <span class="badge outline">disabled</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </article>
+      {% endif %}
+
+      {% if stats.memory_raw and not stats.memory_sections %}
+        <article class="card mb-6">
+          <pre>{{ stats.memory_raw }}</pre>
+        </article>
+      {% endif %}
+    {% endif %}
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
+    {% endif %}
+  </article>
+</main>
+{% endblock %}

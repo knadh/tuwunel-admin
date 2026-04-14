@@ -5,6 +5,13 @@
       {% for m in modules %}
         <li>
           <a href="{% if m.0 == 'users' %}/users{% elif m.0 == 'rooms' %}/rooms{% elif m.0 == 'appservice' %}/appservices{% elif m.0 == 'media' %}/media{% elif m.0 == 'tokens' %}/tokens{% elif m.0 == 'federation' %}/federation{% elif m.0 == 'server' %}/server{% else %}/m/{{ m.0 }}{% endif %}" {% if active == m.0 %}aria-current="page"{% endif %}>{{ m.1 }}</a>
+          {% if m.0 == 'server' and active == 'server' %}
+            <ul class="sub-nav">
+              <li><a href="/server" {% if tab == "admin" %}aria-current="page"{% endif %}>Admin</a></li>
+              <li><a href="/server/config" {% if tab == "config" %}aria-current="page"{% endif %}>Config</a></li>
+              <li><a href="/server/stats" {% if tab == "stats" %}aria-current="page"{% endif %}>Stats</a></li>
+            </ul>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>

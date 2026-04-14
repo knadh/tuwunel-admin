@@ -192,6 +192,17 @@ async fn main() -> Result<()> {
         )
         // Server
         .route("/server", get(handlers::server::index))
+        .route("/server/config", get(handlers::server::config_page))
+        .route("/server/stats", get(handlers::server::stats_page))
+        .route("/server/raw", post(handlers::server::raw_command))
+        .route(
+            "/server/federation-ping",
+            post(handlers::server::federation_ping),
+        )
+        .route(
+            "/server/federation-resolve",
+            post(handlers::server::federation_resolve),
+        )
         .route(
             "/server/reload-config",
             post(handlers::server::reload_config),

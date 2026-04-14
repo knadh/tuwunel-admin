@@ -401,7 +401,8 @@ pub(super) fn install_log(
     flash: Option<&Flash>,
     mut page_log: Vec<matrix::LogEntry>,
 ) {
-    let merged = if let Some(entry) = flash.and_then(|f| f.log.clone()) {
+    let from_flash = flash.and_then(|f| f.log.clone());
+    let merged = if let Some(entry) = from_flash.clone() {
         let mut out = Vec::with_capacity(page_log.len() + 1);
         out.push(entry);
         out.append(&mut page_log);
@@ -413,6 +414,9 @@ pub(super) fn install_log(
     ctx.insert("log", &merged);
     if any_error {
         ctx.insert("log_has_error", &true);
+    }
+    if from_flash.is_some() {
+        ctx.insert("log_open", &true);
     }
 }
 

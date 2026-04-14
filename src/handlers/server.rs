@@ -34,16 +34,114 @@ pub async fn index(
 ) -> Response {
     let flash = take_flash(&session).await;
     let mut ctx = base_ctx(&st, &sess, "server");
-    match server::overview(&st.matrix, &sess).await {
-        Ok(o) => {
-            let log = o.log.clone();
-            ctx.insert("overview", &o);
+    ctx.insert("tab", "admin");
+    install_log(&mut ctx, flash.as_ref(), Vec::new());
+    insert_flash(&mut ctx, flash);
+    render(&st, "server/admin.html", &ctx)
+}
+
+pub async fn config_page(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+) -> Response {
+    let flash = take_flash(&session).await;
+    let mut ctx = base_ctx(&st, &sess, "server");
+    ctx.insert("tab", "config");
+    match server::config(&st.matrix, &sess).await {
+        Ok(c) => {
+            let log = c.log.clone();
+            ctx.insert("config", &c);
             install_log(&mut ctx, flash.as_ref(), log);
         }
         Err(e) => ctx.insert("error", &format!("{e:#}")),
     }
     insert_flash(&mut ctx, flash);
-    render(&st, "server/index.html", &ctx)
+    render(&st, "server/config.html", &ctx)
+}
+
+pub async fn stats_page(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+) -> Response {
+    let flash = take_flash(&session).await;
+    let mut ctx = base_ctx(&st, &sess, "server");
+    ctx.insert("tab", "stats");
+    match server::stats(&st.matrix, &sess).await {
+        Ok(s) => {
+            let log = s.log.clone();
+            ctx.insert("stats", &s);
+            install_log(&mut ctx, flash.as_ref(), log);
+        }
+        Err(e) => ctx.insert("error", &format!("{e:#}")),
+    }
+    insert_flash(&mut ctx, flash);
+    render(&st, "server/stats.html", &ctx)
+}
+
+#[derive(Deserialize)]
+pub struct RawCmdForm {
+    pub cmd: String,
+}
+
+#[derive(Deserialize)]
+pub struct ServerArgForm {
+    pub server: String,
+}
+
+pub async fn raw_command(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Form(f): Form<RawCmdForm>,
+) -> Response {
+    let cmd = f.cmd.trim();
+    if cmd.is_empty() {
+        set_flash(&session, "error", "Command is required.").await;
+        return Redirect::to("/server").into_response();
+    }
+    run_and_flash(&st, &sess, &session, cmd, "Ran admin command").await;
+    Redirect::to("/server").into_response()
+}
+
+pub async fn federation_ping(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Form(f): Form<ServerArgForm>,
+) -> Response {
+    let server = f.server.trim();
+    if server.is_empty() {
+        set_flash(&session, "error", "Server name is required.").await;
+        return Redirect::to("/server").into_response();
+    }
+    let cmd = format!("debug ping {server}");
+    run_and_flash(&st, &sess, &session, &cmd, &format!("Pinged {server}")).await;
+    Redirect::to("/server").into_response()
+}
+
+pub async fn federation_resolve(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Form(f): Form<ServerArgForm>,
+) -> Response {
+    let server = f.server.trim();
+    if server.is_empty() {
+        set_flash(&session, "error", "Server name is required.").await;
+        return Redirect::to("/server").into_response();
+    }
+    let cmd = format!("debug resolve-true-destination {server}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Resolved {server}"),
+    )
+    .await;
+    Redirect::to("/server").into_response()
 }
 
 pub async fn reload_config(

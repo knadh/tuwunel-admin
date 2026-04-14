@@ -112,6 +112,50 @@ main pre {
 .kv-row:last-child { border-bottom: 0; }
 .kv-row dt, .kv-row dd { margin: 0; }
 
+[data-sidebar] .sub-nav {
+  list-style: none;
+  padding-inline-start: var(--space-4);
+  margin: var(--space-1) 0 var(--space-2);
+  border-inline-start: 1px solid var(--border);
+}
+
+.kv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-7);
+}
+.kv-table th, .kv-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  text-align: left;
+}
+.kv-table th {
+  width: 40%;
+  color: var(--muted-foreground);
+  font-weight: var(--font-medium);
+}
+.kv-table tr:last-child th, .kv-table tr:last-child td {
+  border-bottom: 0;
+}
+.kv-table code {
+  word-break: break-word;
+}
+
+.config-section-head {
+  font-family: var(--font-mono);
+  font-size: var(--text-7);
+  color: var(--muted-foreground);
+  margin: var(--space-5) 0 var(--space-2);
+}
+.config-section-head:first-of-type { margin-top: 0; }
+
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-4);
+}
+
 .modules-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));

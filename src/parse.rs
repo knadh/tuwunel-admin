@@ -539,6 +539,90 @@ pub fn list_published_rooms(body: &str) -> Option<Vec<String>> {
     }
 }
 
+/// Parse the body of `server memory-usage` into labelled sections of
+/// `(key, value)` pairs. The tuwunel format is:
+/// ```text
+/// Services:
+///   key: value
+///   ...
+/// Database:
+///   key: value
+///   ...
+/// Allocator:
+///   ...
+/// ```
+/// Lines that don't contain a `:` are ignored. Leading/trailing whitespace and
+/// backticks/fences are stripped.
+pub fn memory_sections(body: &str) -> Vec<(String, Vec<(String, String)>)> {
+    let mut out: Vec<(String, Vec<(String, String)>)> = Vec::new();
+    let mut current: Option<String> = Some("General".to_string());
+    for raw in body.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with("```") {
+            continue;
+        }
+        // Section header: a line ending with `:` whose value (after the colon) is empty.
+        if let Some(label) = line.strip_suffix(':') {
+            if !label.is_empty() && !label.contains(':') {
+                current = Some(label.trim().to_string());
+                continue;
+            }
+        }
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
+        let k = k.trim();
+        let v = v.trim();
+        if k.is_empty() || v.is_empty() {
+            continue;
+        }
+        let section = current.clone().unwrap_or_else(|| "General".to_string());
+        if let Some(entry) = out.iter_mut().find(|(s, _)| s == &section) {
+            entry.1.push((k.to_string(), v.to_string()));
+        } else {
+            out.push((section, vec![(k.to_string(), v.to_string())]));
+        }
+    }
+    out.retain(|(_, rows)| !rows.is_empty());
+    out
+}
+
+/// Parse the body of `server show-config`. Tuwunel's Display impl emits a
+/// markdown table:
+/// ```text
+/// | name | value |
+/// | :--- | :---  |
+/// | key1 | value1 |
+/// ...
+/// ```
+/// Returns `(name, value)` rows, skipping the header and alignment separator.
+/// Values are returned verbatim (may contain markdown). Falls back to empty.
+pub fn config_table(body: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for raw in body.lines() {
+        let line = raw.trim();
+        if !line.starts_with('|') || !line.ends_with('|') {
+            continue;
+        }
+        let inner = &line[1..line.len() - 1];
+        let cells: Vec<&str> = inner.split('|').map(str::trim).collect();
+        if cells.len() < 2 {
+            continue;
+        }
+        let name = cells[0];
+        let value = cells[1];
+        if name.is_empty() || name.eq_ignore_ascii_case("name") {
+            continue;
+        }
+        // Alignment row: `:---` / `---` etc.
+        if name.chars().all(|c| matches!(c, ':' | '-' | ' ')) {
+            continue;
+        }
+        out.push((name.to_string(), value.to_string()));
+    }
+    out
+}
+
 /// `users list-users` header is `Found N local user account(s):`. Returns N,
 /// falling back to counting mxid-shaped lines.
 pub fn count_users(body: &str) -> usize {

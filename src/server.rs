@@ -5,16 +5,6 @@ use serde::Serialize;
 
 use crate::{matrix, parse};
 
-#[derive(Debug, Clone, Serialize)]
-pub struct Overview {
-    pub uptime: String,
-    pub memory: String,
-    pub features: Vec<(String, bool)>,
-    pub backups_raw: String,
-    pub config_raw: String,
-    pub log: Vec<matrix::LogEntry>,
-}
-
 async fn run(
     mx: &matrix::Matrix,
     sess: &matrix::Session,
@@ -28,6 +18,53 @@ async fn run(
         is_error: matrix::is_error_reply(&reply.body),
     });
     Ok(reply)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Config {
+    pub rows: Vec<(String, String)>,
+    pub log: Vec<matrix::LogEntry>,
+}
+
+pub async fn config(mx: &matrix::Matrix, sess: &matrix::Session) -> Result<Config> {
+    let mut log = Vec::new();
+    let reply = run(mx, sess, "server show-config", &mut log).await?;
+    let rows = parse::config_table(&reply.body);
+    Ok(Config { rows, log })
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Stats {
+    pub uptime: String,
+    pub memory_sections: Vec<(String, Vec<(String, String)>)>,
+    pub memory_raw: String,
+    pub features: Vec<(String, bool)>,
+    pub log: Vec<matrix::LogEntry>,
+}
+
+pub async fn stats(mx: &matrix::Matrix, sess: &matrix::Session) -> Result<Stats> {
+    let mut log = Vec::new();
+    let uptime = run(mx, sess, "server uptime", &mut log)
+        .await
+        .map(|r| r.body.trim().trim_end_matches('.').trim().to_string())
+        .unwrap_or_default();
+    let mem = run(mx, sess, "server memory-usage", &mut log)
+        .await
+        .map(|r| r.body)
+        .unwrap_or_default();
+    let memory_sections = parse::memory_sections(&mem);
+    let features = run(mx, sess, "server list-features", &mut log)
+        .await
+        .ok()
+        .and_then(|r| parse::list_features(&r.body))
+        .unwrap_or_default();
+    Ok(Stats {
+        uptime,
+        memory_sections,
+        memory_raw: mem,
+        features,
+        log,
+    })
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -137,35 +174,3 @@ pub async fn dashboard(mx: &matrix::Matrix, sess: &matrix::Session) -> Dashboard
     d
 }
 
-pub async fn overview(mx: &matrix::Matrix, sess: &matrix::Session) -> Result<Overview> {
-    let mut log = Vec::new();
-    let uptime = run(mx, sess, "server uptime", &mut log)
-        .await
-        .map(|r| r.body.trim().to_string())
-        .unwrap_or_default();
-    let memory = run(mx, sess, "server memory-usage", &mut log)
-        .await
-        .map(|r| r.body)
-        .unwrap_or_default();
-    let features = run(mx, sess, "server list-features", &mut log)
-        .await
-        .ok()
-        .and_then(|r| parse::list_features(&r.body))
-        .unwrap_or_default();
-    let backups_raw = run(mx, sess, "server list-backups", &mut log)
-        .await
-        .map(|r| r.body)
-        .unwrap_or_default();
-    let config_raw = run(mx, sess, "server show-config", &mut log)
-        .await
-        .map(|r| r.body)
-        .unwrap_or_default();
-    Ok(Overview {
-        uptime,
-        memory,
-        features,
-        backups_raw,
-        config_raw,
-        log,
-    })
-}
