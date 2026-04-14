@@ -2,8 +2,9 @@
 [server]
 bind = "0.0.0.0:8080"
 
+
 [matrix]
-# Homeserver base URL. All matrix CS-API calls target this.
+# Homeserver base URL.
 homeserver = "https://chat.example.net"
 
 # Bot user in the admin room. Conduwuit/tuwunel convention is the server localpart.
@@ -14,3 +15,7 @@ admin_bot = ""
 # Admin room alias. Default for conduwuit/tuwunel is "#admins:{server_name}".
 # Leave empty to auto-derive.
 admin_room_alias = ""
+
+# Device ID to use when logging in.
+device_id = "tuwunel-admin"
+device_display_name = "tuwunel-admin"

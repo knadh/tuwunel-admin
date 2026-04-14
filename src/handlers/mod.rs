@@ -198,7 +198,15 @@ pub async fn login_submit(
 
 // Do the auth and login flow, set the session.
 async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()> {
-    let login = st.matrix.login(f.username.trim(), &f.password).await?;
+    let login = st
+        .matrix
+        .login(
+            f.username.trim(),
+            &f.password,
+            &st.config.matrix.device_id,
+            &st.config.matrix.device_display_name,
+        )
+        .await?;
 
     // Derive or use configured admin room alias.
     let alias = if st.config.matrix.admin_room_alias.is_empty() {

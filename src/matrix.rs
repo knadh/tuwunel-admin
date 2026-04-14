@@ -51,12 +51,29 @@ impl Matrix {
     }
 
     /// POST /_matrix/client/v3/login with m.login.password.
-    pub async fn login(&self, user: &str, password: &str) -> Result<LoginResult> {
+    pub async fn login(
+        &self,
+        user: &str,
+        password: &str,
+        device_id: &str,
+        device_display_name: &str,
+    ) -> Result<LoginResult> {
+        let device_id = if device_id.is_empty() {
+            "tuwunel-admin"
+        } else {
+            device_id
+        };
+        let device_display_name = if device_display_name.is_empty() {
+            "tuwunel-admin"
+        } else {
+            device_display_name
+        };
         let body = json!({
             "type": "m.login.password",
             "identifier": { "type": "m.id.user", "user": user },
             "password": password,
-            "initial_device_display_name": "tuwunel-admin",
+            "device_id": device_id,
+            "initial_device_display_name": device_display_name,
         });
         let res: Value = self
             .http

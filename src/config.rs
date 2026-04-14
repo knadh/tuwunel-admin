@@ -20,6 +20,10 @@ pub struct Matrix {
     pub admin_bot: String,
     #[serde(default)]
     pub admin_room_alias: String,
+    #[serde(default)]
+    pub device_id: String,
+    #[serde(default)]
+    pub device_display_name: String,
 }
 
 impl Config {
