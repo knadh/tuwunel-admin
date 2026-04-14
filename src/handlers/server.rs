@@ -133,14 +133,7 @@ pub async fn federation_resolve(
         return Redirect::to("/server").into_response();
     }
     let cmd = format!("debug resolve-true-destination {server}");
-    run_and_flash(
-        &st,
-        &sess,
-        &session,
-        &cmd,
-        &format!("Resolved {server}"),
-    )
-    .await;
+    run_and_flash(&st, &sess, &session, &cmd, &format!("Resolved {server}")).await;
     Redirect::to("/server").into_response()
 }
 

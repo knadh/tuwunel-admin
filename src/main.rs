@@ -213,9 +213,6 @@ async fn main() -> Result<()> {
         .route("/server/reload-mods", post(handlers::server::reload_mods))
         .route("/server/restart", post(handlers::server::restart))
         .route("/server/shutdown", post(handlers::server::shutdown))
-        // Catch-all for diagnostics / anything else still in the module catalog
-        .route("/m/:module", get(handlers::module_page))
-        .route("/cmd/:module/:action", post(handlers::run_command))
         .route_layer(axum::middleware::from_fn(handlers::require_auth));
 
     let app = Router::new()

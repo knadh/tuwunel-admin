@@ -173,4 +173,3 @@ pub async fn dashboard(mx: &matrix::Matrix, sess: &matrix::Session) -> Dashboard
 
     d
 }
-

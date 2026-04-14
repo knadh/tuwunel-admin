@@ -7,14 +7,14 @@ pub mod tokens;
 pub mod users;
 
 use axum::{
-    extract::{Form, OriginalUri, Path, Query, Request, State},
+    extract::{Form, OriginalUri, Query, Request, State},
     http::{StatusCode, Uri},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     Extension,
 };
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use tera::Context;
 use tower_sessions::Session;
 
@@ -77,54 +77,6 @@ async fn set_flash_with_log(
 pub(super) fn insert_flash(ctx: &mut Context, flash: Option<Flash>) {
     if let Some(f) = flash {
         ctx.insert("flash", &f);
-    }
-}
-
-#[derive(serde::Serialize)]
-struct CmdView {
-    module: &'static str,
-    action: &'static str,
-    label: &'static str,
-    desc: &'static str,
-    danger: bool,
-    fields: Vec<FieldView>,
-}
-
-#[derive(serde::Serialize)]
-struct FieldView {
-    name: &'static str,
-    label: &'static str,
-    kind: &'static str,
-    placeholder: &'static str,
-    required: bool,
-}
-
-impl From<commands::Cmd> for CmdView {
-    fn from(c: commands::Cmd) -> Self {
-        CmdView {
-            module: c.module,
-            action: c.action,
-            label: c.label,
-            desc: c.desc,
-            danger: c.danger,
-            fields: c
-                .fields
-                .iter()
-                .map(|f| FieldView {
-                    name: f.name,
-                    label: f.label,
-                    kind: match f.kind {
-                        commands::FieldKind::Text => "text",
-                        commands::FieldKind::Password => "password",
-                        commands::FieldKind::Textarea => "textarea",
-                        commands::FieldKind::Checkbox => "checkbox",
-                        commands::FieldKind::Number => "number",
-                    },
-                    placeholder: f.placeholder,
-                    required: f.required,
-                })
-                .collect(),
-        }
     }
 }
 
@@ -285,85 +237,6 @@ pub async fn index(
     let dash = server_mod::dashboard(&st.matrix, &sess).await;
     ctx.insert("dash", &dash);
     render(&st, "dashboard.html", &ctx)
-}
-
-// Render a module page.
-pub async fn module_page(
-    State(st): State<Arc<Ctx>>,
-    Extension(sess): Extension<matrix::Session>,
-    Path(module): Path<String>,
-) -> Response {
-    let cmds = commands::by_module(&module);
-    if cmds.is_empty() {
-        return (StatusCode::NOT_FOUND, "unknown module").into_response();
-    }
-    let title = commands::MODULES
-        .iter()
-        .find(|(m, _)| *m == module)
-        .map(|(_, t)| *t)
-        .unwrap_or(&module);
-
-    let cmd_views: Vec<CmdView> = cmds.iter().map(|c| CmdView::from(**c)).collect();
-
-    let mut ctx = base_ctx(&st, &sess, &module);
-    ctx.insert("module", &module);
-    ctx.insert("module_title", title);
-    ctx.insert("cmds", &cmd_views);
-    render(&st, "module.html", &ctx)
-}
-
-// Run a command and render the module page with the result.
-pub async fn run_command(
-    State(st): State<Arc<Ctx>>,
-    Extension(sess): Extension<matrix::Session>,
-    Path((module, action)): Path<(String, String)>,
-    Form(form): Form<HashMap<String, String>>,
-) -> Response {
-    let Some(cmd) = commands::find(&module, &action) else {
-        return (StatusCode::NOT_FOUND, "unknown command").into_response();
-    };
-
-    let cmd_str = commands::render_template(cmd, &form);
-    let (reply, error) = match st.matrix.run_admin(&sess, &cmd_str).await {
-        Ok(r) => (Some(r), None),
-        Err(e) => (None, Some(format!("{e:#}"))),
-    };
-
-    let title = commands::MODULES
-        .iter()
-        .find(|(m, _)| *m == module)
-        .map(|(_, t)| *t)
-        .unwrap_or(&module);
-    let cmd_views: Vec<CmdView> = commands::by_module(&module)
-        .into_iter()
-        .map(|c| CmdView::from(*c))
-        .collect();
-
-    let mut ctx = base_ctx(&st, &sess, &module);
-    ctx.insert("module", &module);
-    ctx.insert("module_title", title);
-    ctx.insert("cmds", &cmd_views);
-    ctx.insert("ran_action", &action);
-    ctx.insert("ran_cmd", &cmd_str);
-    ctx.insert("form", &form);
-
-    if let Some(r) = reply {
-        ctx.insert(
-            "reply_html",
-            &if r.is_html {
-                r.body.clone()
-            } else {
-                markdown_to_html(&r.body)
-            },
-        );
-        ctx.insert("reply_raw", &r.body);
-        ctx.insert("reply_sender", &r.sender);
-    }
-    if let Some(e) = error {
-        ctx.insert("error", &e);
-    }
-
-    render(&st, "module.html", &ctx)
 }
 
 // Wrap the context with common fields.
