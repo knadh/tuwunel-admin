@@ -22,10 +22,11 @@
       {% if detail %}
         <p class="mt-2 flex gap-2" style="align-items:center">
           {% if detail.row.banned %}
-            <span class="badge" data-variant="danger">banned</span>
+            <span class="badge danger">banned</span>
           {% else %}
             <span class="badge outline">ok</span>
           {% endif %}
+          {% if detail.row.federated %}<span class="badge outline">federated</span>{% endif %}
         </p>
       {% endif %}
     </header>
@@ -49,6 +50,31 @@
 
       <hr />
       <section class="mb-6 mt-6">
+        <h2 class="mb-4">Federation</h2>
+        <p class="mb-4">
+          {% if detail.row.federated %}
+            <span class="badge outline">enabled</span>
+            Incoming federation is enabled for this room.
+          {% else %}
+            <span class="badge">disabled</span>
+            Incoming federation is disabled for this room.
+          {% endif %}
+        </p>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          {% if detail.row.federated %}
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/disable" style="display:inline">
+              <button type="submit" class="outline" data-variant="danger">Disable federation</button>
+            </form>
+          {% else %}
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/enable" style="display:inline">
+              <button type="submit" class="outline">Enable federation</button>
+            </form>
+          {% endif %}
+        </div>
+      </section>
+
+      <hr />
+      <section class="mb-6 mt-6">
         <h2 class="mb-4">Members {% if detail.members %} ({{ detail.members | length }}){% endif %}</h2>
         {% if detail.members %}
           <table>
@@ -67,11 +93,11 @@
         {% else %}
           <div>{{ members_html | safe }}</div>
         {% endif %}
-        <details class="mt-4">
-          <summary><small>Console log</small></summary>
-          <pre>{{ detail.members_raw }}</pre>
-        </details>
       </section>
+    {% endif %}
+
+    {% if log %}
+      {% include "partials/console_log.html" %}
     {% endif %}
   </article>
 

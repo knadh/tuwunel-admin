@@ -3,4 +3,9 @@
     <p>{{ flash.text }}</p>
   </div>
 {% endif %}
+{% if log_has_error %}
+  <div role="alert" class="mb-6" data-variant="danger">
+    <p>One or more admin commands on this page failed. See the console log below.</p>
+  </div>
+{% endif %}
 {% if error %}<div role="alert" class="mb-6" data-variant="danger">{{ error }}</div>{% endif %}

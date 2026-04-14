@@ -88,6 +88,14 @@ async fn main() -> Result<()> {
         .route("/rooms/:room_id/ban", post(handlers::rooms_ban))
         .route("/rooms/:room_id/unban", post(handlers::rooms_unban))
         .route("/rooms/:room_id/delete", post(handlers::rooms_delete))
+        .route(
+            "/rooms/:room_id/federation/enable",
+            post(handlers::rooms_federation_enable),
+        )
+        .route(
+            "/rooms/:room_id/federation/disable",
+            post(handlers::rooms_federation_disable),
+        )
         .route("/m/:module", get(handlers::module_page))
         .route("/cmd/:module/:action", post(handlers::run_command))
         .route_layer(axum::middleware::from_fn(handlers::require_auth));

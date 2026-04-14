@@ -41,7 +41,6 @@ pub enum FieldKind {
 pub const MODULES: &[(&str, &str)] = &[
     ("users", "Users"),
     ("rooms", "Rooms"),
-    ("federation", "Federation"),
     ("appservice", "App services"),
     ("media", "Media"),
     ("tokens", "Registration tokens"),
@@ -218,44 +217,6 @@ pub const ALL: &[Cmd] = &[
         ],
         template: "rooms delete {room_id} [--force force]",
         danger: true,
-    },
-
-    // Federation
-    Cmd {
-        module: "federation",
-        action: "incoming",
-        label: "Incoming federation",
-        desc: "List rooms receiving incoming federation PDUs.",
-        fields: &[],
-        template: "federation incoming-federation",
-        danger: false,
-    },
-    Cmd {
-        module: "federation",
-        action: "disable-room",
-        label: "Disable federation for room",
-        desc: "",
-        fields: &[Field { name: "room_id", label: "Room ID", kind: FieldKind::Text, placeholder: "!abc:server", required: true }],
-        template: "federation disable-room {room_id}",
-        danger: true,
-    },
-    Cmd {
-        module: "federation",
-        action: "enable-room",
-        label: "Enable federation for room",
-        desc: "",
-        fields: &[Field { name: "room_id", label: "Room ID", kind: FieldKind::Text, placeholder: "!abc:server", required: true }],
-        template: "federation enable-room {room_id}",
-        danger: false,
-    },
-    Cmd {
-        module: "federation",
-        action: "remote-user-rooms",
-        label: "Rooms shared with remote user",
-        desc: "List rooms this server shares with a remote user.",
-        fields: &[Field { name: "user_id", label: "User ID", kind: FieldKind::Text, placeholder: "@bob:other.server", required: true }],
-        template: "federation remote-user-in-rooms {user_id}",
-        danger: false,
     },
 
     // Appservice

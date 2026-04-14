@@ -23,6 +23,8 @@ const FLASH_KEY: &str = "flash";
 struct Flash {
     kind: String,
     text: String,
+    #[serde(default)]
+    log: Option<matrix::LogEntry>,
 }
 
 async fn take_flash(session: &Session) -> Option<Flash> {
@@ -40,6 +42,25 @@ async fn set_flash(session: &Session, kind: &str, text: impl Into<String>) {
             &Flash {
                 kind: kind.into(),
                 text: text.into(),
+                log: None,
+            },
+        )
+        .await;
+}
+
+async fn set_flash_with_log(
+    session: &Session,
+    kind: &str,
+    text: impl Into<String>,
+    log: matrix::LogEntry,
+) {
+    let _ = session
+        .insert(
+            FLASH_KEY,
+            &Flash {
+                kind: kind.into(),
+                text: text.into(),
+                log: Some(log),
             },
         )
         .await;
@@ -572,11 +593,9 @@ pub async fn rooms_list(
 
     let mut ctx = base_ctx(&st, &sess, "rooms");
     match rooms::list(&st.matrix, &sess).await {
-        Ok((rows, raw)) => {
-            let raw_html = markdown_to_html(&raw);
+        Ok((rows, log)) => {
             ctx.insert("rooms", &rows);
-            ctx.insert("rooms_raw", &raw);
-            ctx.insert("rooms_raw_html", &raw_html);
+            install_log(&mut ctx, flash.as_ref(), log);
         }
         Err(e) => ctx.insert("error", &format!("{e:#}")),
     }
@@ -597,13 +616,33 @@ pub async fn rooms_detail(
     match rooms::detail(&st.matrix, &sess, &room_id).await {
         Ok(d) => {
             let raw_html = markdown_to_html(&d.members_raw);
+            let log = d.log.clone();
             ctx.insert("detail", &d);
             ctx.insert("members_html", &raw_html);
+            install_log(&mut ctx, flash.as_ref(), log);
         }
         Err(e) => ctx.insert("error", &format!("{e:#}")),
     }
     insert_flash(&mut ctx, flash);
     render(&st, "rooms/detail.html", &ctx)
+}
+
+// Merge the flash's attached log entry (if any) with this page's log, insert
+// into ctx, and raise a `log_warning` flag if any entry looks like an error.
+fn install_log(ctx: &mut Context, flash: Option<&Flash>, mut page_log: Vec<matrix::LogEntry>) {
+    let merged = if let Some(entry) = flash.and_then(|f| f.log.clone()) {
+        let mut out = Vec::with_capacity(page_log.len() + 1);
+        out.push(entry);
+        out.append(&mut page_log);
+        out
+    } else {
+        page_log
+    };
+    let any_error = merged.iter().any(|e| e.is_error);
+    ctx.insert("log", &merged);
+    if any_error {
+        ctx.insert("log_has_error", &true);
+    }
 }
 
 pub async fn rooms_ban(
@@ -625,6 +664,42 @@ pub async fn rooms_unban(
 ) -> Response {
     let cmd = format!("rooms moderation unban-room {room_id}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Unbanned {room_id}")).await;
+    Redirect::to(&format!("/rooms/{room_id}")).into_response()
+}
+
+pub async fn rooms_federation_enable(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Path(room_id): Path<String>,
+) -> Response {
+    let cmd = format!("federation enable-room {room_id}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Enabled federation for {room_id}"),
+    )
+    .await;
+    Redirect::to(&format!("/rooms/{room_id}")).into_response()
+}
+
+pub async fn rooms_federation_disable(
+    State(st): State<Arc<Ctx>>,
+    session: Session,
+    Extension(sess): Extension<matrix::Session>,
+    Path(room_id): Path<String>,
+) -> Response {
+    let cmd = format!("federation disable-room {room_id}");
+    run_and_flash(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Disabled federation for {room_id}"),
+    )
+    .await;
     Redirect::to(&format!("/rooms/{room_id}")).into_response()
 }
 
@@ -661,19 +736,33 @@ async fn run_and_flash(
 ) {
     match st.matrix.run_admin(sess, cmd).await {
         Ok(r) => {
-            let lc = r.body.to_ascii_lowercase();
-            let looks_error = lc.trim_start().starts_with("error")
-                || lc.contains("command failed")
-                || lc.contains("unrecognized subcommand");
+            let looks_error = matrix::is_error_reply(&r.body);
             let kind = if looks_error { "error" } else { "success" };
             let text = if looks_error {
-                r.body
+                format!("Command failed: {cmd}")
             } else {
-                format!("{success}\n\n{}", r.body)
+                success.to_string()
             };
-            set_flash(session, kind, text).await;
+            let log = matrix::LogEntry {
+                cmd: cmd.to_string(),
+                body: r.body,
+                is_error: looks_error,
+            };
+            set_flash_with_log(session, kind, text, log).await;
         }
-        Err(e) => set_flash(session, "error", format!("{e:#}")).await,
+        Err(e) => {
+            set_flash_with_log(
+                session,
+                "error",
+                format!("{e:#}"),
+                matrix::LogEntry {
+                    cmd: cmd.to_string(),
+                    body: String::new(),
+                    is_error: true,
+                },
+            )
+            .await;
+        }
     }
 }
 

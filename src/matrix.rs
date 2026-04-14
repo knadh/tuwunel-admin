@@ -288,6 +288,48 @@ pub struct BotReply {
     pub is_html: bool,
 }
 
+/// A single admin command round-trip captured for the on-page console log.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogEntry {
+    pub cmd: String,
+    pub body: String,
+    #[serde(default)]
+    pub is_error: bool,
+}
+
+/// Best-effort detector for tuwunel admin-bot replies that indicate failure.
+///
+/// Tuwunel wraps many replies — including benign empty-state responses like
+/// `"No rooms are banned."` — with a `"Command failed with error:"` prefix
+/// followed by a fenced block. So the prefix alone isn't a reliable signal.
+/// We inspect the fenced payload and treat "No ..." / empty inner bodies as
+/// non-errors; anything else inside the wrapper is a real error.
+pub fn is_error_reply(body: &str) -> bool {
+    let trimmed = body.trim();
+    let lc = trimmed.to_ascii_lowercase();
+
+    if lc.starts_with("command failed with error:") {
+        let inner = fenced_payload(trimmed).unwrap_or("").trim();
+        let inner_lc = inner.to_ascii_lowercase();
+        if inner.is_empty() || inner_lc.starts_with("no ") {
+            return false;
+        }
+        return true;
+    }
+
+    lc.starts_with("error") || lc.contains("unrecognized subcommand")
+}
+
+/// Extract the first fenced (```…```) payload from a reply body.
+fn fenced_payload(s: &str) -> Option<&str> {
+    let open = s.find("```")?;
+    let after_open = &s[open + 3..];
+    let first_nl = after_open.find('\n')?;
+    let after_nl = &after_open[first_nl + 1..];
+    let close = after_nl.rfind("```")?;
+    Some(&after_nl[..close])
+}
+
 /// Derive server name from an mxid (`@user:server`).
 pub fn server_name_from_mxid(mxid: &str) -> Option<&str> {
     mxid.split_once(':').map(|(_, s)| s)

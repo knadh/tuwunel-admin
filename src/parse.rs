@@ -124,6 +124,28 @@ pub fn list_joined_members(body: &str) -> Option<Vec<String>> {
     }
 }
 
+/// Best-effort parser for `federation incoming-federation`. Returns the
+/// list of room_ids with incoming federation enabled.
+pub fn list_federated_rooms(body: &str) -> Option<Vec<String>> {
+    let ids: Vec<String> = body
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with('!'))
+        .map(|l| {
+            l.split(|c: char| c.is_whitespace() || c == '\t')
+                .next()
+                .unwrap_or(l)
+                .trim()
+                .to_string()
+        })
+        .collect();
+    if ids.is_empty() {
+        None
+    } else {
+        Some(ids)
+    }
+}
+
 /// Best-effort parser for `rooms moderation list-banned-rooms`. Returns
 /// the list of banned room_ids.
 pub fn list_banned_rooms(body: &str) -> Option<Vec<String>> {
