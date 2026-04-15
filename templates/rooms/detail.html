@@ -1,13 +1,8 @@
 {% extends "layout.html" %}
 {% block title %}{{ room_id }} · Rooms · tuwunel-admin{% endblock %}
-{% block body_attrs %}data-sidebar-layout{% endblock %}
+{% block breadcrumb %} / Rooms / {% if detail and detail.row.name %}{{ detail.row.name }}{% else %}{{ room_id }}{% endif %}{% endblock %}
 
 {% block body %}
-<nav data-topnav>
-  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
-  <strong>tuwunel-admin / Rooms / {% if detail and detail.row.name %}{{ detail.row.name }}{% else %}{{ room_id }}{% endif %}</strong>
-</nav>
-{% include "_sidebar.html" %}
 
 <main x-data="roomDetail()">
   <article>

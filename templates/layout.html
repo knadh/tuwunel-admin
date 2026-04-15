@@ -9,7 +9,14 @@
 <script src="/static/oat.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
 </head>
-<body {% block body_attrs %}{% endblock %}>
+<body {% block body_attrs %}data-sidebar-layout{% endblock %}>
+{% block chrome %}
+<nav data-topnav>
+  <button data-sidebar-toggle aria-label="Toggle menu" class="outline">☰</button>
+  <strong>tuwunel-admin {% block breadcrumb %}{% endblock %}</strong>
+</nav>
+{% include "_sidebar.html" %}
+{% endblock %}
 {% block body %}{% endblock %}
 </body>
 </html>
