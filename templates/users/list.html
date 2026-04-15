@@ -11,8 +11,8 @@
 
 <main x-data="usersPage()">
   <article>
-    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;">
-      <h1 style="margin:0">Users ({{ users | length }})</h1>
+    <header class="page-header">
+      <h1>Users ({{ users | length }})</h1>
       <button commandfor="dlg-create" command="show-modal">＋ New user</button>
     </header>
 
@@ -21,22 +21,22 @@
     <section>
       <div class="row mb-4">
         <div class="col-6">
-          <label data-field style="margin:0">
+          <label data-field class="m-0">
             <input type="search" x-model.debounce.150ms="q" placeholder="Search mxid…" autocomplete="off">
           </label>
         </div>
-        <div class="col-6 flex gap-4" style="justify-content:flex-end;align-items:flex-end">
+        <div class="col-6 flex gap-4 flex-end items-end">
           <button x-show="selected.length > 0" x-cloak data-variant="danger"
                   commandfor="dlg-deactivate-all" command="show-modal"
                   x-text="`Deactivate (${selected.length})`"></button>
-          <label data-field style="margin:0">
+          <label data-field class="m-0">
             <select x-model="status">
               <option value="all">All users</option>
               <option value="active">Active (has activity)</option>
               <option value="inactive">Inactive (no activity)</option>
             </select>
           </label>
-          <label data-field style="margin:0">
+          <label data-field class="m-0">
             <select x-model="sort">
               <option value="mxid">Sort: MXID (A→Z)</option>
               <option value="last-active">Sort: Last active (newest)</option>
@@ -52,7 +52,7 @@
             <th>MXID</th>
             <th>Role</th>
             <th>Last active</th>
-            <th style="text-align:right">Actions</th>
+            <th class="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -73,7 +73,7 @@
             </td>
             <td>{% if u.last_active %}<small>{{ u.last_active }}</small>{% else %}<small>—</small>{% endif %}</td>
             <td>
-              <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
+              <div class="flex gap-2 flex-end flex-wrap">
                 <button class="outline" @click="openReset('{{ u.mxid }}')">Reset password</button>
                 {% if not u.is_admin %}
                   <button popovertarget="pop-mk" class="outline" @click="target = '{{ u.mxid }}'">Make admin</button>
@@ -115,7 +115,7 @@
     <br />
     <footer>
       <button type="button" class="outline small" popovertarget="pop-mk">Cancel</button>
-      <form method="post" :action="`/users/${encodeURIComponent(target)}/make-admin`" style="display:inline">
+      <form method="post" :action="`/users/${encodeURIComponent(target)}/make-admin`" class="inline-form">
         <button type="submit" class="small">Grant</button>
       </form>
     </footer>

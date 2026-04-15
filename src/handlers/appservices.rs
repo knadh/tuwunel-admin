@@ -1,13 +1,16 @@
 use axum::{
     extract::{Form, Path, State},
-    response::{IntoResponse, Redirect, Response},
+    response::Response,
     Extension,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 use tower_sessions::Session;
 
-use super::{base_ctx, insert_flash, install_log, render, run_and_flash, set_flash, take_flash};
+use super::{
+    base_ctx, insert_flash, install_log, redirect, redirect_with_err, render, run_and_flash,
+    take_flash,
+};
 use crate::{appservices, matrix, Ctx};
 
 #[derive(Deserialize)]
@@ -64,12 +67,11 @@ pub async fn register(
 ) -> Response {
     let yaml = f.yaml.trim();
     if yaml.is_empty() {
-        set_flash(&session, "error", "Registration YAML is required.").await;
-        return Redirect::to("/appservices").into_response();
+        return redirect_with_err(&session, "Registration YAML is required.", "/appservices").await;
     }
-    let cmd = format!("appservices register\n```\n{yaml}\n```");
+    let cmd = super::with_fenced_payload("appservices register", yaml);
     run_and_flash(&st, &sess, &session, &cmd, "Registered appservice").await;
-    Redirect::to("/appservices").into_response()
+    redirect("/appservices")
 }
 
 pub async fn unregister(
@@ -80,5 +82,5 @@ pub async fn unregister(
 ) -> Response {
     let cmd = format!("appservices unregister {id}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Unregistered {id}")).await;
-    Redirect::to("/appservices").into_response()
+    redirect("/appservices")
 }

@@ -14,13 +14,13 @@
     <header class="mb-6">
       <p class="mb-2"><small><a href="/rooms">← All rooms</a></small></p>
       {% if detail and detail.row.name %}
-        <h1 style="margin:0">{{ detail.row.name }}</h1>
+        <h1 class="m-0">{{ detail.row.name }}</h1>
         <p class="mt-2"><small class="muted">{{ room_id }}</small></p>
       {% else %}
-        <h1 style="margin:0">{{ room_id }}</h1>
+        <h1 class="m-0">{{ room_id }}</h1>
       {% endif %}
       {% if detail %}
-        <p class="mt-2 flex gap-2" style="align-items:center;flex-wrap:wrap">
+        <p class="mt-2 flex gap-2 items-center flex-wrap">
           {% if detail.row.banned %}
             <span class="badge" data-variant="danger">banned</span>
           {% else %}
@@ -46,7 +46,7 @@
     {% if detail %}
       <section class="mb-6 mt-6">
         <h2 class="mb-4">Actions</h2>
-        <div class="flex gap-2" style="flex-wrap:wrap">
+        <div class="flex gap-2 flex-wrap">
           {% if detail.row.banned %}
             <button popovertarget="pop-unban" class="outline">Unban</button>
           {% else %}
@@ -65,7 +65,7 @@
               {% for a in detail.aliases %}
                 <tr>
                   <td><code>{{ a }}</code></td>
-                  <td style="text-align:right">
+                  <td class="text-right">
                     <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases/remove"
                           onsubmit="return confirm('Remove alias {{ a }}?')">
                       <input type="hidden" name="localpart" value="{{ a | split(pat=':') | first | trim_start_matches(pat='#') }}">
@@ -79,12 +79,12 @@
         {% else %}
           <p><small class="muted">No aliases point at this room.</small></p>
         {% endif %}
-        <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases" class="flex gap-2 mt-4" style="flex-wrap:wrap;align-items:flex-end">
-          <label data-field style="margin:0;flex:1 1 240px">
+        <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases" class="flex gap-2 mt-4 flex-wrap items-end">
+          <label data-field class="m-0" style="flex:1 1 240px">
             <small class="muted">Add alias (localpart only — without `#` and server)</small>
             <input type="text" name="localpart" placeholder="roomname" required autocomplete="off">
           </label>
-          <label data-field style="margin:0">
+          <label data-field class="m-0">
             <input type="checkbox" name="force" value="on"> Force
           </label>
           <button type="submit" class="outline">Add alias</button>
@@ -104,11 +104,11 @@
           {% endif %}
         </p>
         {% if detail.row.published %}
-          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/unpublish" style="display:inline">
+          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/unpublish" class="inline-form">
             <button type="submit" class="outline" data-variant="danger">Unpublish</button>
           </form>
         {% else %}
-          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/publish" style="display:inline">
+          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/publish" class="inline-form">
             <button type="submit" class="outline">Publish</button>
           </form>
         {% endif %}
@@ -126,13 +126,13 @@
             Incoming federation is disabled for this room.
           {% endif %}
         </p>
-        <div class="flex gap-2" style="flex-wrap:wrap">
+        <div class="flex gap-2 flex-wrap">
           {% if detail.row.federated %}
-            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/disable" style="display:inline">
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/disable" class="inline-form">
               <button type="submit" class="outline" data-variant="danger">Disable federation</button>
             </form>
           {% else %}
-            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/enable" style="display:inline">
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/enable" class="inline-form">
               <button type="submit" class="outline">Enable federation</button>
             </form>
           {% endif %}
@@ -199,7 +199,7 @@
     <br />
     <footer>
       <button type="button" class="outline small" popovertarget="pop-ban">Cancel</button>
-      <form method="post" action="/rooms/{{ room_id | urlencode }}/ban" style="display:inline">
+      <form method="post" action="/rooms/{{ room_id | urlencode }}/ban" class="inline-form">
         <button type="submit" data-variant="danger" class="small">Ban</button>
       </form>
     </footer>
@@ -213,7 +213,7 @@
     <br />
     <footer>
       <button type="button" class="outline small" popovertarget="pop-unban">Cancel</button>
-      <form method="post" action="/rooms/{{ room_id | urlencode }}/unban" style="display:inline">
+      <form method="post" action="/rooms/{{ room_id | urlencode }}/unban" class="inline-form">
         <button type="submit" class="small">Unban</button>
       </form>
     </footer>

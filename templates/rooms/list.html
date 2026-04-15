@@ -11,10 +11,10 @@
 
 <main x-data="roomsPage()">
   <article>
-    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;flex-wrap:wrap">
-      <h1 style="margin:0">Rooms{% if rooms %} ({{ rooms | length }}){% endif %}</h1>
-      <form method="get" action="/rooms/find-by-alias" class="flex gap-2" style="align-items:flex-end">
-        <label data-field style="margin:0">
+    <header class="page-header">
+      <h1>Rooms{% if rooms %} ({{ rooms | length }}){% endif %}</h1>
+      <form method="get" action="/rooms/find-by-alias" class="flex gap-2 items-end">
+        <label data-field class="m-0">
           <input type="search" name="alias" placeholder="#alias:server or localpart" autocomplete="off" required>
         </label>
         <button type="submit" class="outline">Find by alias →</button>
@@ -27,40 +27,40 @@
       <section>
         <div class="row mb-4">
           <div class="col-4">
-            <label data-field style="margin:0">
+            <label data-field class="m-0">
               <input type="search" x-model.debounce.150ms="q" placeholder="Search room id, name or alias…" autocomplete="off">
             </label>
           </div>
-          <div class="col-8 flex gap-4" style="justify-content:flex-end;flex-wrap:wrap">
-            <label data-field style="margin:0">
+          <div class="col-8 flex gap-4 flex-end flex-wrap">
+            <label data-field class="m-0">
               <select x-model="kind">
                 <option value="room">Rooms</option>
                 <option value="dm">Private chats</option>
                 <option value="all">All</option>
               </select>
             </label>
-            <label data-field style="margin:0">
+            <label data-field class="m-0">
               <select x-model="status">
                 <option value="all">All statuses</option>
                 <option value="banned">Banned</option>
                 <option value="active">Not banned</option>
               </select>
             </label>
-            <label data-field style="margin:0">
+            <label data-field class="m-0">
               <select x-model="federation">
                 <option value="all">All federation</option>
                 <option value="federated">Federated</option>
                 <option value="local">Local-only</option>
               </select>
             </label>
-            <label data-field style="margin:0">
+            <label data-field class="m-0">
               <select x-model="directory">
                 <option value="all">All directory</option>
                 <option value="published">Published</option>
                 <option value="unpublished">Unpublished</option>
               </select>
             </label>
-            <label data-field style="margin:0">
+            <label data-field class="m-0">
               <select x-model="sort">
                 <option value="name">Sort: Name (A→Z)</option>
                 <option value="members">Sort: Members (most)</option>
@@ -75,9 +75,9 @@
             <tr>
               <th style="width:32px"><input type="checkbox" @change="toggleAll($event.target.checked)" :checked="allVisibleSelected()"></th>
               <th>Name</th>
-              <th style="text-align:right">Members</th>
+              <th class="text-right">Members</th>
               <th>Status</th>
-              <th style="text-align:right">Actions</th>
+              <th class="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -90,9 +90,9 @@
                   <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="muted">(unnamed)</em>{% endif %}</a>
                   <br><small class="muted">{{ r.room_id }}</small>
                 </td>
-                <td style="text-align:right">{{ r.members }}</td>
+                <td class="text-right">{{ r.members }}</td>
                 <td>
-                  <div class="flex gap-2" style="flex-wrap:wrap">
+                  <div class="flex gap-2 flex-wrap">
                     {% if r.banned %}
                       <span class="badge" data-variant="danger">banned</span>
                     {% else %}
@@ -103,7 +103,7 @@
                   </div>
                 </td>
                 <td>
-                  <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
+                  <div class="flex gap-2 flex-end flex-wrap">
                     {% if r.banned %}
                       <button popovertarget="pop-unban" class="outline" @click="target='{{ r.room_id }}'; targetName='{{ r.name }}'">Unban</button>
                     {% else %}
@@ -117,7 +117,7 @@
           </tbody>
         </table>
 
-        <nav class="flex gap-4 mt-4 mb-6" style="justify-content:space-between;align-items:center">
+        <nav class="flex gap-4 mt-4 mb-6 flex-between items-center">
           <small class="muted">Page {{ page }}</small>
           <div class="flex gap-2">
             {% if page > 1 %}
@@ -156,8 +156,7 @@
   </article>
 
   <div x-show="selected.length > 0" x-transition
-       style="position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:1rem;margin-top:1rem;"
-       class="flex gap-4" :style="selected.length === 0 ? 'display:none' : ''">
+       class="sticky-actions flex gap-4" :style="selected.length === 0 ? 'display:none' : ''">
     <strong x-text="`${selected.length} selected`"></strong>
     <button class="outline" @click="selected = []">Clear</button>
     <button data-variant="danger" commandfor="dlg-ban-list" command="show-modal">Ban selected</button>

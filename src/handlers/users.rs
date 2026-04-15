@@ -1,6 +1,6 @@
 use axum::{
     extract::{Form, Path, State},
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Response},
     Extension, Json,
 };
 use serde::Deserialize;
@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tower_sessions::Session;
 
 use super::{
-    base_ctx, insert_flash, install_log, markdown_to_html, render, run_and_flash, set_flash,
-    take_flash,
+    base_ctx, checkbox, redirect_with_err, insert_flash, install_log, markdown_to_html,
+    redirect, render, run_and_flash, set_flash, split_lines, take_flash, with_fenced_payload,
 };
 use crate::{matrix, users, Ctx};
 
@@ -88,10 +88,9 @@ pub async fn create(
 ) -> Response {
     let username = f.username.trim();
     if username.is_empty() {
-        set_flash(&session, "error", "Username is required.").await;
-        return Redirect::to("/users").into_response();
+        return redirect_with_err(&session, "Username is required.", "/users").await;
     }
-    let generate = matches!(f.generate.as_deref(), Some("on" | "true" | "1" | "yes"));
+    let generate = checkbox(f.generate.as_deref());
     let password = f.password.as_deref().unwrap_or("").trim();
     let autogen = generate || password.is_empty();
     let cmd = if autogen {
@@ -133,7 +132,7 @@ pub async fn create(
         )
         .await;
     }
-    Redirect::to("/users").into_response()
+    redirect("/users")
 }
 
 pub async fn detail(
@@ -167,9 +166,9 @@ pub async fn reset_password(
     Path(mxid): Path<String>,
     Form(f): Form<PasswordForm>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     if f.password.is_empty() {
-        set_flash(&session, "error", "Password is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
+        return redirect_with_err(&session, "Password is required.", &back).await;
     }
     let cmd = format!("users reset-password {mxid} {}", f.password);
     run_and_flash(
@@ -180,7 +179,7 @@ pub async fn reset_password(
         &format!("Reset password for {mxid}"),
     )
     .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&back)
 }
 
 pub async fn deactivate(
@@ -190,16 +189,13 @@ pub async fn deactivate(
     Path(mxid): Path<String>,
     Form(f): Form<DeactivateForm>,
 ) -> Response {
-    let cmd = if matches!(
-        f.no_leave_rooms.as_deref(),
-        Some("on" | "true" | "1" | "yes")
-    ) {
+    let cmd = if checkbox(f.no_leave_rooms.as_deref()) {
         format!("users deactivate --no-leave-rooms {mxid}")
     } else {
         format!("users deactivate {mxid}")
     };
     run_and_flash(&st, &sess, &session, &cmd, &format!("Deactivated {mxid}")).await;
-    Redirect::to("/users").into_response()
+    redirect("/users")
 }
 
 pub async fn deactivate_all(
@@ -208,30 +204,19 @@ pub async fn deactivate_all(
     Extension(sess): Extension<matrix::Session>,
     Form(f): Form<DeactivateAllForm>,
 ) -> Response {
-    let mxids: Vec<&str> = f
-        .mxids
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect();
+    let mxids = split_lines(&f.mxids);
     if mxids.is_empty() {
-        set_flash(&session, "error", "Select at least one user.").await;
-        return Redirect::to("/users").into_response();
+        return redirect_with_err(&session, "Select at least one user.", "/users").await;
     }
-    let mut cmd = String::from("users deactivate-all");
-    if matches!(
-        f.no_leave_rooms.as_deref(),
-        Some("on" | "true" | "1" | "yes")
-    ) {
-        cmd.push_str(" --no-leave-rooms");
+    let mut head = String::from("users deactivate-all");
+    if checkbox(f.no_leave_rooms.as_deref()) {
+        head.push_str(" --no-leave-rooms");
     }
-    if matches!(f.force.as_deref(), Some("on" | "true" | "1" | "yes")) {
-        cmd.push_str(" --force");
+    if checkbox(f.force.as_deref()) {
+        head.push_str(" --force");
     }
-    cmd.push_str("\n```\n");
-    cmd.push_str(&mxids.join("\n"));
-    cmd.push_str("\n```");
     let n = mxids.len();
+    let cmd = with_fenced_payload(&head, &mxids.join("\n"));
     run_and_flash(
         &st,
         &sess,
@@ -240,7 +225,7 @@ pub async fn deactivate_all(
         &format!("Deactivated {n} user(s)"),
     )
     .await;
-    Redirect::to("/users").into_response()
+    redirect("/users")
 }
 
 pub async fn make_admin(
@@ -258,7 +243,7 @@ pub async fn make_admin(
         &format!("Granted admin to {mxid}"),
     )
     .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&format!("/users/{mxid}"))
 }
 
 pub async fn force_join(
@@ -268,10 +253,10 @@ pub async fn force_join(
     Path(mxid): Path<String>,
     Form(f): Form<RoomForm>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let room = f.room.trim();
     if room.is_empty() {
-        set_flash(&session, "error", "Room is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
+        return redirect_with_err(&session, "Room is required.", &back).await;
     }
     let cmd = format!("users force-join-room {mxid} {room}");
     run_and_flash(
@@ -282,7 +267,7 @@ pub async fn force_join(
         &format!("Joined {mxid} to {room}"),
     )
     .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&back)
 }
 
 pub async fn force_leave(
@@ -292,10 +277,10 @@ pub async fn force_leave(
     Path(mxid): Path<String>,
     Form(f): Form<RoomIdForm>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let room = f.room_id.trim();
     if room.is_empty() {
-        set_flash(&session, "error", "Room ID is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
+        return redirect_with_err(&session, "Room ID is required.", &back).await;
     }
     let cmd = format!("users force-leave-room {mxid} {room}");
     run_and_flash(
@@ -306,7 +291,7 @@ pub async fn force_leave(
         &format!("Removed {mxid} from {room}"),
     )
     .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&back)
 }
 
 pub async fn redact_event(
@@ -316,14 +301,14 @@ pub async fn redact_event(
     Path(mxid): Path<String>,
     Form(f): Form<EventIdForm>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let evt = f.event_id.trim();
     if evt.is_empty() {
-        set_flash(&session, "error", "Event ID is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
+        return redirect_with_err(&session, "Event ID is required.", &back).await;
     }
     let cmd = format!("users redact-event {evt}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Redacted {evt}")).await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&back)
 }
 
 pub async fn delete_device(
@@ -341,7 +326,7 @@ pub async fn delete_device(
         &format!("Deleted device {device_id}"),
     )
     .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&format!("/users/{mxid}"))
 }
 
 pub async fn force_promote(
@@ -359,7 +344,7 @@ pub async fn force_promote(
         &format!("Promoted {mxid} in {room_id}"),
     )
     .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&format!("/users/{mxid}"))
 }
 
 pub async fn force_demote(
@@ -377,7 +362,7 @@ pub async fn force_demote(
         &format!("Demoted {mxid} in {room_id}"),
     )
     .await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&format!("/users/{mxid}"))
 }
 
 pub async fn room_tag(
@@ -387,22 +372,24 @@ pub async fn room_tag(
     Path((mxid, room_id)): Path<(String, String)>,
     Form(f): Form<TagForm>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let tag = f.tag.trim();
     if tag.is_empty() {
-        set_flash(&session, "error", "Tag is required.").await;
-        return Redirect::to(&format!("/users/{mxid}")).into_response();
+        return redirect_with_err(&session, "Tag is required.", &back).await;
     }
-    let cmd = match f.verb.as_str() {
-        "delete" => format!("users delete-room-tag {mxid} {room_id} {tag}"),
-        _ => format!("users put-room-tag {mxid} {room_id} {tag}"),
-    };
-    let msg = if f.verb == "delete" {
-        format!("Removed tag {tag} from {room_id}")
+    let (cmd, msg) = if f.verb == "delete" {
+        (
+            format!("users delete-room-tag {mxid} {room_id} {tag}"),
+            format!("Removed tag {tag} from {room_id}"),
+        )
     } else {
-        format!("Tagged {room_id} as {tag}")
+        (
+            format!("users put-room-tag {mxid} {room_id} {tag}"),
+            format!("Tagged {room_id} as {tag}"),
+        )
     };
     run_and_flash(&st, &sess, &session, &cmd, &msg).await;
-    Redirect::to(&format!("/users/{mxid}")).into_response()
+    redirect(&back)
 }
 
 pub async fn get_room_tags(

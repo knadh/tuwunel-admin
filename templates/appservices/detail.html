@@ -13,9 +13,9 @@
   <article>
     <header class="mb-6">
       <p class="mb-2"><small><a href="/appservices">← All appservices</a></small></p>
-      <h1 style="margin:0">{{ id }}</h1>
+      <h1 class="m-0">{{ id }}</h1>
       {% if detail %}
-        <p class="mt-2 flex gap-2" style="align-items:center;flex-wrap:wrap">
+        <p class="mt-2 flex gap-2 items-center flex-wrap">
           {% if detail.row.sender_localpart %}<span class="badge outline">sender: {{ detail.row.sender_localpart }}</span>{% endif %}
           {% if detail.row.url %}<small class="muted">{{ detail.row.url }}</small>{% endif %}
         </p>
@@ -31,7 +31,7 @@
     {% if detail %}
       <section class="mb-6">
         <h2 class="mb-4">Actions</h2>
-        <div class="flex gap-2" style="flex-wrap:wrap">
+        <div class="flex gap-2 flex-wrap">
           <button class="outline" data-variant="danger" popovertarget="pop-unreg">Unregister</button>
         </div>
       </section>
@@ -80,7 +80,7 @@
     <br />
     <footer>
       <button type="button" class="outline small" popovertarget="pop-unreg">Cancel</button>
-      <form method="post" action="/appservices/{{ id | urlencode }}/unregister" style="display:inline">
+      <form method="post" action="/appservices/{{ id | urlencode }}/unregister" class="inline-form">
         <button type="submit" data-variant="danger" class="small">Unregister</button>
       </form>
     </footer>

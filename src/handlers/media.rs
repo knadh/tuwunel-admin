@@ -1,13 +1,16 @@
 use axum::{
     extract::{Form, Query, State},
-    response::{IntoResponse, Redirect, Response},
+    response::Response,
     Extension,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 use tower_sessions::Session;
 
-use super::{base_ctx, insert_flash, install_log, render, run_and_flash, set_flash, take_flash};
+use super::{
+    base_ctx, checkbox, redirect_with_err, insert_flash, install_log, redirect, render,
+    run_and_flash, split_lines, take_flash, with_fenced_payload,
+};
 use crate::{matrix, media, Ctx};
 
 #[derive(Deserialize)]
@@ -98,12 +101,11 @@ pub async fn delete(
 ) -> Response {
     let mxc = f.mxc.trim();
     if mxc.is_empty() {
-        set_flash(&session, "error", "MXC URL is required.").await;
-        return Redirect::to("/media").into_response();
+        return redirect_with_err(&session, "MXC URL is required.", "/media").await;
     }
     let cmd = format!("media delete --mxc {mxc}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Deleted {mxc}")).await;
-    Redirect::to("/media").into_response()
+    redirect("/media")
 }
 
 pub async fn delete_by_event(
@@ -114,8 +116,7 @@ pub async fn delete_by_event(
 ) -> Response {
     let evt = f.event_id.trim();
     if evt.is_empty() {
-        set_flash(&session, "error", "Event ID is required.").await;
-        return Redirect::to("/media").into_response();
+        return redirect_with_err(&session, "Event ID is required.", "/media").await;
     }
     let cmd = format!("media delete-by-event --event-id {evt}");
     run_and_flash(
@@ -126,7 +127,7 @@ pub async fn delete_by_event(
         &format!("Deleted media for {evt}"),
     )
     .await;
-    Redirect::to("/media").into_response()
+    redirect("/media")
 }
 
 pub async fn delete_list(
@@ -135,20 +136,12 @@ pub async fn delete_list(
     Extension(sess): Extension<matrix::Session>,
     Form(f): Form<DeleteListForm>,
 ) -> Response {
-    let mxcs: Vec<&str> = f
-        .mxcs
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect();
+    let mxcs = split_lines(&f.mxcs);
     if mxcs.is_empty() {
-        set_flash(&session, "error", "Provide a list of MXC URLs.").await;
-        return Redirect::to("/media").into_response();
+        return redirect_with_err(&session, "Provide a list of MXC URLs.", "/media").await;
     }
-    let mut cmd = String::from("media delete-list\n```\n");
-    cmd.push_str(&mxcs.join("\n"));
-    cmd.push_str("\n```");
     let n = mxcs.len();
+    let cmd = with_fenced_payload("media delete-list", &mxcs.join("\n"));
     run_and_flash(
         &st,
         &sess,
@@ -157,7 +150,7 @@ pub async fn delete_list(
         &format!("Deleted {n} media file(s)"),
     )
     .await;
-    Redirect::to("/media").into_response()
+    redirect("/media")
 }
 
 pub async fn delete_range(
@@ -168,28 +161,27 @@ pub async fn delete_range(
 ) -> Response {
     let duration = f.duration.trim();
     if duration.is_empty() {
-        set_flash(&session, "error", "Duration is required.").await;
-        return Redirect::to("/media").into_response();
+        return redirect_with_err(&session, "Duration is required.", "/media").await;
     }
+    let newer = f.direction == "newer";
     let mut cmd = String::from("media delete-range");
-    match f.direction.as_str() {
-        "newer" => cmd.push_str(" --newer-than"),
-        _ => cmd.push_str(" --older-than"),
-    }
-    if matches!(
-        f.include_local.as_deref(),
-        Some("on" | "true" | "1" | "yes")
-    ) {
+    cmd.push_str(if newer {
+        " --newer-than"
+    } else {
+        " --older-than"
+    });
+    if checkbox(f.include_local.as_deref()) {
         cmd.push_str(" --yes-i-want-to-delete-local-media");
     }
     cmd.push(' ');
     cmd.push_str(duration);
-    let msg = match f.direction.as_str() {
-        "newer" => format!("Deleted media newer than {duration}"),
-        _ => format!("Deleted media older than {duration}"),
+    let msg = if newer {
+        format!("Deleted media newer than {duration}")
+    } else {
+        format!("Deleted media older than {duration}")
     };
     run_and_flash(&st, &sess, &session, &cmd, &msg).await;
-    Redirect::to("/media").into_response()
+    redirect("/media")
 }
 
 pub async fn delete_from_user(
@@ -200,8 +192,7 @@ pub async fn delete_from_user(
 ) -> Response {
     let user = f.user.trim();
     if user.is_empty() {
-        set_flash(&session, "error", "User ID is required.").await;
-        return Redirect::to("/media").into_response();
+        return redirect_with_err(&session, "User ID is required.", "/media").await;
     }
     let cmd = format!("media delete-all-from-user {user}");
     run_and_flash(
@@ -212,7 +203,7 @@ pub async fn delete_from_user(
         &format!("Deleted all media from {user}"),
     )
     .await;
-    Redirect::to("/media").into_response()
+    redirect("/media")
 }
 
 pub async fn delete_from_server(
@@ -223,14 +214,10 @@ pub async fn delete_from_server(
 ) -> Response {
     let server = f.server.trim();
     if server.is_empty() {
-        set_flash(&session, "error", "Server name is required.").await;
-        return Redirect::to("/media").into_response();
+        return redirect_with_err(&session, "Server name is required.", "/media").await;
     }
     let mut cmd = String::from("media delete-all-from-server");
-    if matches!(
-        f.include_local.as_deref(),
-        Some("on" | "true" | "1" | "yes")
-    ) {
+    if checkbox(f.include_local.as_deref()) {
         cmd.push_str(" --yes-i-want-to-delete-local-media");
     }
     cmd.push(' ');
@@ -243,7 +230,7 @@ pub async fn delete_from_server(
         &format!("Deleted media from {server}"),
     )
     .await;
-    Redirect::to("/media").into_response()
+    redirect("/media")
 }
 
 pub async fn fetch_remote(
@@ -254,36 +241,27 @@ pub async fn fetch_remote(
 ) -> Response {
     let mxc = f.mxc.trim();
     if mxc.is_empty() {
-        set_flash(&session, "error", "MXC URL is required.").await;
-        return Redirect::to("/media").into_response();
+        return redirect_with_err(&session, "MXC URL is required.", "/media").await;
     }
-    let thumb = matches!(f.thumbnail.as_deref(), Some("on" | "true" | "1" | "yes"));
+    let thumb = checkbox(f.thumbnail.as_deref());
     let mut cmd = String::from(if thumb {
         "media get-remote-thumbnail"
     } else {
         "media get-remote-file"
     });
-    if let Some(server) = f.server.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        cmd.push_str(&format!(" --server {server}"));
-    }
-    if let Some(timeout) = f
-        .timeout
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        cmd.push_str(&format!(" --timeout {timeout}"));
-    }
+    let mut push_flag = |name: &str, v: Option<&String>| {
+        if let Some(val) = v.map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            cmd.push_str(&format!(" --{name} {val}"));
+        }
+    };
+    push_flag("server", f.server.as_ref());
+    push_flag("timeout", f.timeout.as_ref());
     if thumb {
-        if let Some(w) = f.width.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            cmd.push_str(&format!(" --width {w}"));
-        }
-        if let Some(h) = f.height.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            cmd.push_str(&format!(" --height {h}"));
-        }
+        push_flag("width", f.width.as_ref());
+        push_flag("height", f.height.as_ref());
     }
     cmd.push(' ');
     cmd.push_str(mxc);
     run_and_flash(&st, &sess, &session, &cmd, &format!("Fetched {mxc}")).await;
-    Redirect::to(&format!("/media?mxc={}", urlencoding::encode(mxc))).into_response()
+    redirect(&format!("/media?mxc={}", urlencoding::encode(mxc)))
 }

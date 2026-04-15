@@ -13,9 +13,9 @@
   <article>
     <header class="mb-6">
       <p class="mb-2"><small><a href="/users">← All users</a></small></p>
-      <h1 style="margin:0">{{ mxid }}</h1>
+      <h1 class="m-0">{{ mxid }}</h1>
       {% if detail %}
-        <p class="mt-2 flex gap-2" style="align-items:center">
+        <p class="mt-2 flex gap-2 items-center">
           {% if detail.row.is_admin %}<span class="badge" data-variant="success">admin</span>{% else %}<span class="badge outline">user</span>{% endif %}
           {% if detail.row.last_active %}<small>Last active {{ detail.row.last_active }}</small>{% endif %}
           {% if detail.devices %}<small class="muted">· {{ detail.devices | length }} device(s)</small>{% endif %}
@@ -30,7 +30,7 @@
     {% if detail %}
       <section class="mb-6">
         <h2 class="mb-4">Actions</h2>
-        <div class="flex gap-2" style="flex-wrap:wrap">
+        <div class="flex gap-2 flex-wrap">
           <button class="outline" commandfor="dlg-rp" command="show-modal">Reset password</button>
           <button class="outline" commandfor="dlg-fj" command="show-modal">Force-join room</button>
           <button class="outline" commandfor="dlg-fl" command="show-modal" data-variant="danger">Force-leave room</button>
@@ -77,7 +77,7 @@
         <h2 class="mb-4">Rooms {% if detail.joined_rooms %} ({{ detail.joined_rooms | length }}){% endif %}</h2>
         {% if detail.joined_rooms %}
           <table>
-            <thead><tr><th>Name</th><th style="text-align:right">Members</th><th style="text-align:right">Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th class="text-right">Members</th><th class="text-right">Actions</th></tr></thead>
             <tbody>
               {% for r in detail.joined_rooms %}
                 <tr>
@@ -85,9 +85,9 @@
                     <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="muted">(unnamed)</em>{% endif %}</a>
                     <br><small class="muted">{{ r.room_id }}</small>
                   </td>
-                  <td style="text-align:right">{{ r.members }}</td>
+                  <td class="text-right">{{ r.members }}</td>
                   <td>
-                    <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
+                    <div class="flex gap-2 flex-end flex-wrap">
                       <button class="outline small" @click="openPromote('{{ r.room_id }}')">Promote</button>
                       <button class="outline small" data-variant="danger" @click="openDemote('{{ r.room_id }}')">Demote</button>
                       <button class="outline small" @click="openTag('{{ r.room_id }}')">Tag</button>
@@ -107,7 +107,7 @@
         <h2 class="mb-4">Devices {% if detail.devices %}({{ detail.devices | length }}){% endif %}</h2>
         {% if detail.devices %}
           <table>
-            <thead><tr><th>Device</th><th>Display name</th><th>Last IP</th><th>Last seen</th><th style="text-align:right">Actions</th></tr></thead>
+            <thead><tr><th>Device</th><th>Display name</th><th>Last IP</th><th>Last seen</th><th class="text-right">Actions</th></tr></thead>
             <tbody>
               {% for d in detail.devices %}
                 <tr>
@@ -116,7 +116,7 @@
                   <td>{% if d.last_seen_ip %}<small>{{ d.last_seen_ip }}</small>{% else %}<small class="muted">—</small>{% endif %}</td>
                   <td>{% if d.last_seen_ts %}<small>{{ d.last_seen_ts }}</small>{% else %}<small class="muted">—</small>{% endif %}</td>
                   <td>
-                    <div class="flex gap-2" style="justify-content:flex-end">
+                    <div class="flex gap-2 flex-end">
                       <form method="post" action="/users/{{ mxid | urlencode }}/devices/{{ d.device_id | urlencode }}/delete"
                             onsubmit="return confirm('Revoke device {{ d.device_id }}? The session will be signed out.')">
                         <button type="submit" class="outline small" data-variant="danger">Revoke</button>

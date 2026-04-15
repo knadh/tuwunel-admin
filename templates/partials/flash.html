@@ -1,6 +1,6 @@
 {% if flash %}
   <div role="alert" class="mb-6" data-variant="{% if flash.kind == 'error' %}danger{% else %}success{% endif %}">
-    <p style="white-space:pre-wrap;margin:0">{{ flash.text }}</p>
+    <p class="m-0" style="white-space:pre-wrap">{{ flash.text }}</p>
   </div>
 {% endif %}
 {% if log_has_error %}

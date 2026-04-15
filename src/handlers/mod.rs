@@ -106,6 +106,37 @@ pub struct NextQuery {
     pub next: Option<String>,
 }
 
+// Parse an HTML form checkbox value into a bool. Browsers send "on" when checked,
+// but we also accept a few other truthy spellings for robustness.
+pub(super) fn checkbox(val: Option<&str>) -> bool {
+    matches!(val, Some("on" | "true" | "1" | "yes"))
+}
+
+// Split a textarea value into non-empty trimmed lines.
+pub(super) fn split_lines(text: &str) -> Vec<&str> {
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
+// Build a redirect response to the given path.
+pub(super) fn redirect(to: &str) -> Response {
+    Redirect::to(to).into_response()
+}
+
+// Flash an error, then redirect. Shorthand for the "missing required field" pattern.
+pub(super) async fn redirect_with_err(session: &Session, msg: &str, to: &str) -> Response {
+    set_flash(session, "error", msg).await;
+    redirect(to)
+}
+
+// Wrap an admin command body in a fenced code block, appended after the command line.
+// Used by commands that accept a list payload (ban-list, deactivate-all, delete-list, ...).
+pub(super) fn with_fenced_payload(cmd: &str, payload: &str) -> String {
+    format!("{cmd}\n```\n{payload}\n```")
+}
+
 // Render the login page.
 pub async fn login_page(State(st): State<Arc<Ctx>>, Query(q): Query<NextQuery>) -> Response {
     let next = safe_next(q.next.as_deref());

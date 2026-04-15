@@ -1,13 +1,16 @@
 use axum::{
     extract::{Form, State},
-    response::{IntoResponse, Redirect, Response},
+    response::Response,
     Extension,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 use tower_sessions::Session;
 
-use super::{base_ctx, insert_flash, install_log, render, run_and_flash, set_flash, take_flash};
+use super::{
+    base_ctx, checkbox, redirect_with_err, insert_flash, install_log, redirect, render,
+    run_and_flash, take_flash,
+};
 use crate::{matrix, server, Ctx};
 
 #[derive(Deserialize)]
@@ -98,11 +101,10 @@ pub async fn raw_command(
 ) -> Response {
     let cmd = f.cmd.trim();
     if cmd.is_empty() {
-        set_flash(&session, "error", "Command is required.").await;
-        return Redirect::to("/server").into_response();
+        return redirect_with_err(&session, "Command is required.", "/server").await;
     }
     run_and_flash(&st, &sess, &session, cmd, "Ran admin command").await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn federation_ping(
@@ -113,12 +115,11 @@ pub async fn federation_ping(
 ) -> Response {
     let server = f.server.trim();
     if server.is_empty() {
-        set_flash(&session, "error", "Server name is required.").await;
-        return Redirect::to("/server").into_response();
+        return redirect_with_err(&session, "Server name is required.", "/server").await;
     }
     let cmd = format!("debug ping {server}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Pinged {server}")).await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn federation_resolve(
@@ -129,12 +130,11 @@ pub async fn federation_resolve(
 ) -> Response {
     let server = f.server.trim();
     if server.is_empty() {
-        set_flash(&session, "error", "Server name is required.").await;
-        return Redirect::to("/server").into_response();
+        return redirect_with_err(&session, "Server name is required.", "/server").await;
     }
     let cmd = format!("debug resolve-true-destination {server}");
     run_and_flash(&st, &sess, &session, &cmd, &format!("Resolved {server}")).await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn reload_config(
@@ -148,7 +148,7 @@ pub async fn reload_config(
         None => "server reload-config".to_string(),
     };
     run_and_flash(&st, &sess, &session, &cmd, "Reloaded config").await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn clear_caches(
@@ -164,7 +164,7 @@ pub async fn clear_caches(
         "Cleared caches",
     )
     .await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn backup(
@@ -180,7 +180,7 @@ pub async fn backup(
         "Database backup triggered",
     )
     .await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn admin_notice(
@@ -191,12 +191,11 @@ pub async fn admin_notice(
 ) -> Response {
     let msg = f.message.trim();
     if msg.is_empty() {
-        set_flash(&session, "error", "Message is required.").await;
-        return Redirect::to("/server").into_response();
+        return redirect_with_err(&session, "Message is required.", "/server").await;
     }
     let cmd = format!("server admin-notice {msg}");
     run_and_flash(&st, &sess, &session, &cmd, "Sent admin notice").await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn reload_mods(
@@ -212,7 +211,7 @@ pub async fn reload_mods(
         "Reloaded server modules",
     )
     .await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn restart(
@@ -221,13 +220,13 @@ pub async fn restart(
     Extension(sess): Extension<matrix::Session>,
     Form(f): Form<RestartForm>,
 ) -> Response {
-    let cmd = if matches!(f.force.as_deref(), Some("on" | "true" | "1" | "yes")) {
+    let cmd = if checkbox(f.force.as_deref()) {
         "server restart --force"
     } else {
         "server restart"
     };
     run_and_flash(&st, &sess, &session, cmd, "Restart requested").await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }
 
 pub async fn shutdown(
@@ -243,5 +242,5 @@ pub async fn shutdown(
         "Shutdown requested",
     )
     .await;
-    Redirect::to("/server").into_response()
+    redirect("/server")
 }

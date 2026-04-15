@@ -1,13 +1,16 @@
 use axum::{
     extract::{Form, Path, State},
-    response::{IntoResponse, Redirect, Response},
+    response::Response,
     Extension,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 use tower_sessions::Session;
 
-use super::{base_ctx, insert_flash, install_log, render, run_and_flash, set_flash, take_flash};
+use super::{
+    base_ctx, checkbox, redirect_with_err, insert_flash, install_log, redirect, render,
+    run_and_flash, take_flash,
+};
 use crate::{matrix, tokens, Ctx};
 
 #[derive(Deserialize)]
@@ -46,27 +49,18 @@ pub async fn issue(
     Form(f): Form<IssueTokenForm>,
 ) -> Response {
     let mut cmd = String::from("token issue");
-    if let Some(v) = f
-        .max_uses
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        cmd.push_str(&format!(" --max-uses {v}"));
-    }
-    if let Some(v) = f
-        .max_age
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        cmd.push_str(&format!(" --max-age {v}"));
-    }
-    if matches!(f.once.as_deref(), Some("on" | "true" | "1" | "yes")) {
+    let mut push_flag = |name: &str, v: Option<&String>| {
+        if let Some(val) = v.map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            cmd.push_str(&format!(" --{name} {val}"));
+        }
+    };
+    push_flag("max-uses", f.max_uses.as_ref());
+    push_flag("max-age", f.max_age.as_ref());
+    if checkbox(f.once.as_deref()) {
         cmd.push_str(" --once");
     }
     run_and_flash(&st, &sess, &session, &cmd, "Issued new registration token").await;
-    Redirect::to("/tokens").into_response()
+    redirect("/tokens")
 }
 
 pub async fn revoke(
@@ -77,8 +71,7 @@ pub async fn revoke(
 ) -> Response {
     let trimmed = token.trim();
     if trimmed.is_empty() {
-        set_flash(&session, "error", "Token is required.").await;
-        return Redirect::to("/tokens").into_response();
+        return redirect_with_err(&session, "Token is required.", "/tokens").await;
     }
     let cmd = format!("token revoke {trimmed}");
     run_and_flash(
@@ -89,5 +82,5 @@ pub async fn revoke(
         &format!("Revoked token {trimmed}"),
     )
     .await;
-    Redirect::to("/tokens").into_response()
+    redirect("/tokens")
 }

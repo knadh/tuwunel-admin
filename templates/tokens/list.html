@@ -11,8 +11,8 @@
 
 <main x-data="tokensPage()">
   <article>
-    <header class="flex gap-4 mb-6" style="align-items:center;justify-content:space-between;">
-      <h1 style="margin:0">Registration tokens{% if tokens %} ({{ tokens | length }}){% endif %}</h1>
+    <header class="page-header">
+      <h1>Registration tokens{% if tokens %} ({{ tokens | length }}){% endif %}</h1>
       <button commandfor="dlg-issue" command="show-modal">＋ New token</button>
     </header>
 
@@ -22,12 +22,12 @@
       <section>
         <div class="row mb-4">
           <div class="col-6">
-            <label data-field style="margin:0">
+            <label data-field class="m-0">
               <input type="search" x-model.debounce.150ms="q" placeholder="Search token…" autocomplete="off">
             </label>
           </div>
-          <div class="col-6 flex gap-4" style="justify-content:flex-end">
-            <label data-field style="margin:0">
+          <div class="col-6 flex gap-4 flex-end">
+            <label data-field class="m-0">
               <select x-model="status">
                 <option value="all">All tokens</option>
                 <option value="unused">Unused</option>
@@ -35,7 +35,7 @@
                 <option value="expiring">With expiration</option>
               </select>
             </label>
-            <label data-field style="margin:0">
+            <label data-field class="m-0">
               <select x-model="sort">
                 <option value="token">Sort: Token</option>
                 <option value="completed">Sort: Times used (most)</option>
@@ -50,11 +50,11 @@
           <thead>
             <tr>
               <th>Token</th>
-              <th style="text-align:right">Used</th>
-              <th style="text-align:right">Pending</th>
+              <th class="text-right">Used</th>
+              <th class="text-right">Pending</th>
               <th>Limit</th>
               <th>Expires</th>
-              <th style="text-align:right">Actions</th>
+              <th class="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -65,8 +65,8 @@
                 data-pending="{{ t.pending }}"
                 data-expiration="{{ t.expiration | default(value='') }}">
                 <td><code>{{ t.token }}</code></td>
-                <td style="text-align:right">{{ t.completed }}</td>
-                <td style="text-align:right">{{ t.pending }}</td>
+                <td class="text-right">{{ t.completed }}</td>
+                <td class="text-right">{{ t.pending }}</td>
                 <td>
                   {% if t.uses_allowed %}
                     <small>{{ t.completed }}/{{ t.uses_allowed }}</small>
@@ -83,7 +83,7 @@
                   {% endif %}
                 </td>
                 <td>
-                  <div class="flex gap-2" style="justify-content:flex-end;flex-wrap:wrap">
+                  <div class="flex gap-2 flex-end flex-wrap">
                     <button class="outline small" @click="copy('{{ t.token }}')">Copy</button>
                     <button class="outline small" data-variant="danger" @click="target='{{ t.token }}'" popovertarget="pop-revoke">Revoke</button>
                   </div>
@@ -113,7 +113,7 @@
     <br />
     <footer>
       <button type="button" class="outline small" popovertarget="pop-revoke">Cancel</button>
-      <form method="post" :action="`/tokens/${encodeURIComponent(target)}/revoke`" style="display:inline">
+      <form method="post" :action="`/tokens/${encodeURIComponent(target)}/revoke`" class="inline-form">
         <button type="submit" data-variant="danger" class="small">Revoke</button>
       </form>
     </footer>

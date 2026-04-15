@@ -12,7 +12,7 @@
 <main>
   <article>
     <header class="mb-6">
-      <h1 style="margin:0">Media</h1>
+      <h1 class="m-0">Media</h1>
       <p class="mt-2"><small class="muted">Tuwunel doesn't index uploaded media for listing. Use the tools below to look up or purge content.</small></p>
     </header>
 
@@ -23,8 +23,8 @@
         <h3>Lookup file</h3>
         <p><small class="muted">Fetch metadata for a single upload by its MXC URL.</small></p>
       </header>
-      <form method="get" action="/media" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end">
-        <label data-field style="flex:1 1 420px;margin:0">
+      <form method="get" action="/media" class="flex gap-2 flex-wrap items-end">
+        <label data-field class="m-0" style="flex:1 1 420px">
           MXC URL
           <input type="text" name="mxc" value="{{ lookup_mxc | default(value='') }}" placeholder="mxc://server/abc" required autocomplete="off">
         </label>

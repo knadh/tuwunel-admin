@@ -12,7 +12,7 @@
 <main>
   <article>
     <header class="mb-6">
-      <h1 style="margin:0">Federation</h1>
+      <h1 class="m-0">Federation</h1>
       <p class="mt-2"><small class="muted">Tools for diagnosing and managing this server's federation with other homeservers.</small></p>
     </header>
 
@@ -44,8 +44,8 @@
         <h3>Fetch support info</h3>
         <p><small class="muted">Retrieve <code>/.well-known/matrix/support</code> from a server for moderation contact details.</small></p>
       </header>
-      <form method="post" action="/federation/fetch-well-known" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end">
-        <label data-field style="flex:1 1 300px;margin:0">
+      <form method="post" action="/federation/fetch-well-known" class="flex gap-2 flex-wrap items-end">
+        <label data-field class="m-0" style="flex:1 1 300px">
           Server name
           <input type="text" name="server" placeholder="matrix.org" required autocomplete="off">
         </label>
@@ -60,8 +60,8 @@
         <h3>Remote user → shared rooms</h3>
         <p><small class="muted">List rooms we share with a remote user.</small></p>
       </header>
-      <form method="post" action="/federation/remote-user-in-rooms" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end">
-        <label data-field style="flex:1 1 300px;margin:0">
+      <form method="post" action="/federation/remote-user-in-rooms" class="flex gap-2 flex-wrap items-end">
+        <label data-field class="m-0" style="flex:1 1 300px">
           User ID
           <input type="text" name="user_id" placeholder="@alice:matrix.org" required autocomplete="off">
         </label>

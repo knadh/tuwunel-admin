@@ -12,7 +12,7 @@
 <main>
   <article>
     <header class="mb-4">
-      <h1 style="margin:0">Admin</h1>
+      <h1 class="m-0">Admin</h1>
     </header>
 
     {% include "partials/flash.html" %}
@@ -22,7 +22,7 @@
         <h3>Caches &amp; database</h3>
         <p><small class="muted">Maintenance operations. Backups are RocksDB-only.</small></p>
       </header>
-      <div class="flex gap-2" style="flex-wrap:wrap">
+      <div class="flex gap-2 flex-wrap">
         <form method="post" action="/server/clear-caches"
               onsubmit="return confirm('Clear all caches?')">
           <button type="submit" class="outline">Clear caches</button>
@@ -40,14 +40,14 @@
         <p><small class="muted">Affects every connected client on this server.</small></p>
         <br />
       </header>
-      <div class="flex gap-2" style="flex-wrap:wrap">
+      <div class="flex gap-2 flex-wrap">
         <form method="post" action="/server/reload-mods"
               onsubmit="return confirm('Hot-reload server modules?')">
           <button type="submit" class="outline" data-variant="danger">Hot-reload</button>
         </form>
         <form method="post" action="/server/restart"
               onsubmit="return confirm('Restart the server?')">
-          <label data-field style="margin:0">
+          <label data-field class="m-0">
             <input type="checkbox" name="force" value="on"> Force
           </label>
           <button type="submit" class="outline" data-variant="danger">Restart</button>

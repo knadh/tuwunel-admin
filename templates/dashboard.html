@@ -11,7 +11,7 @@
 <main>
   <article>
     <header class="mb-6">
-      <h1 style="margin:0">{{ homeserver | replace(from="https://", to="") | replace(from="http://", to="") | trim_end_matches(pat="/") }}</h1>
+      <h1 class="m-0">{{ homeserver | replace(from="https://", to="") | replace(from="http://", to="") | trim_end_matches(pat="/") }}</h1>
       <p class="mt-2 muted">Admin room: {{ admin_room_id }}</small></p>
     </header>
 
