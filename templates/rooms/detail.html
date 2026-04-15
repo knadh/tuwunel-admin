@@ -47,8 +47,10 @@
     </div>
 
     {% if detail %}
-      <section class="mb-6 mt-6">
-        <h2 class="mb-4">Actions</h2>
+      <article class="card mb-6">
+        <header>
+          <h3>Actions</h3>
+        </header>
         <div class="flex gap-2 flex-wrap">
           {% if detail.row.published %}
             <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/unpublish" class="inline-form">
@@ -76,9 +78,8 @@
           {% endif %}
           <button data-variant="danger" commandfor="dlg-del" command="show-modal">Delete</button>
         </div>
-      </section>
+      </article>
 
-      <hr />
       <section class="mb-6 mt-6">
         <div class="row mb-4">
           <div class="col-6">
