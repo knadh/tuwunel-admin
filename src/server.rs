@@ -136,7 +136,7 @@ pub async fn dashboard(mx: &matrix::Matrix, sess: &matrix::Session) -> Dashboard
     }
 
     d.admin_count = mx
-        .joined_members(&sess.access_token, &sess.admin_room_id)
+        .joined_members(&sess.homeserver, &sess.access_token, &sess.admin_room_id)
         .await
         .map(|v| v.len())
         .unwrap_or(0);

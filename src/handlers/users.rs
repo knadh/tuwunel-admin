@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tower_sessions::Session;
 
 use super::{
-    base_ctx, checkbox, redirect_with_err, insert_flash, install_log, markdown_to_html,
-    redirect, render, run_and_flash, set_flash, split_lines, take_flash, with_fenced_payload,
+    base_ctx, checkbox, insert_flash, install_log, markdown_to_html, redirect, redirect_with_err,
+    render, run_and_flash, set_flash, split_lines, take_flash, with_fenced_payload,
 };
 use crate::{matrix, users, Ctx};
 

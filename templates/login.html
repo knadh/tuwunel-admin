@@ -8,26 +8,65 @@
   <article>
     <header>
       <h1>tuwunel-admin</h1>
-      <p>Log in with a Matrix user that is a server admin.</p>
+      <p>Log in with a Matrix user with admin role.</p>
     </header>
+    <br />
 
-    {% if error %}
-      <div role="alert" class="alert danger">{{ error }}</div>
+    {% if config_error %}
+      <div role="alert" class="alert danger">{{ config_error }}</div>
+    {% else %}
+      {% if error %}
+        <div role="alert" class="alert danger">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/login{% if next and next != '/' %}?next={{ next | urlencode }}{% endif %}" id="login-form" class="login-form">
+        <div class="homeserver" data-field>
+          <label data-field for="hs-custom">Homeserver</label>
+          <fieldset class="group" role="group">
+            {% if homeservers | length > 0 %}
+              <select id="hs-select" {% if not allow_any_server %}name="homeserver" required{% endif %} aria-label="Choose a homeserver">
+                {% for hs in homeservers %}
+                  <option value="{{ hs }}">{{ hs | split(pat="://") | last }}</option>
+                {% endfor %}
+              </select>
+            {% endif %}
+            {% if allow_any_server %}
+              <input type="url" name="homeserver" id="hs-custom"
+                    placeholder="https://chat.example.net"
+                    required autocomplete="url" aria-label="Homeserver URL">
+            {% endif %}
+          </fieldset>
+        </div>
+
+        <label data-field>
+          Username
+          <input type="text" name="username" placeholder="alice or @alice:server" required autocomplete="username">
+        </label>
+        <label data-field>
+          Password
+          <input type="password" name="password" required autocomplete="current-password">
+        </label>
+        <button type="submit">Log in</button>
+      </form>
+
+      <script>
+        {
+          const _key = 'tuwunel-admin.homeserver';
+          const sel = document.querySelector('#hs-select');
+          const custom = document.querySelector('#hs-custom');
+          const last = localStorage.getItem(_key);
+
+          if (sel && last && [...sel.options].some(o => o.value === last)) sel.value = last;
+          if (custom) custom.value = last && (!sel || sel.value !== last) ? last : sel?.value ?? '';
+          sel?.addEventListener('change', () => { if (custom) custom.value = sel.value; });
+
+          document.querySelector('#login-form')?.addEventListener('submit', () => {
+            const v = custom?.value || sel?.value;
+            if (v) localStorage.setItem(_key, v);
+          });
+        }
+      </script>
     {% endif %}
-
-    <p><small>Homeserver: {{ homeserver }}</small></p>
-
-    <form method="post" action="/login{% if next and next != '/' %}?next={{ next | urlencode }}{% endif %}">
-      <label data-field>
-        Username
-        <input type="text" name="username" placeholder="alice or @alice:server" required autocomplete="username">
-      </label>
-      <label data-field>
-        Password
-        <input type="password" name="password" required autocomplete="current-password">
-      </label>
-      <button type="submit">Log in</button>
-    </form>
   </article>
 </main>
 {% endblock %}

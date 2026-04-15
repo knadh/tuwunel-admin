@@ -12,26 +12,25 @@ const REPLY_DEADLINE: Duration = Duration::from_secs(10);
 /// Max timeout for a single long-poll sync iteration in ms.
 const SYNC_LONGPOLL_MS: u64 = 15_000;
 
-/// A simple Matrix Client-Server API wrapper bound to a single homeserver.
+/// A simple Matrix Client-Server API wrapper..
 #[derive(Clone)]
 pub struct Matrix {
     http: Client,
-    homeserver: String,
 }
 
 impl Matrix {
-    pub fn new(homeserver: impl Into<String>) -> Self {
+    pub fn new() -> Self {
         Self {
             http: Client::builder()
                 .pool_idle_timeout(Duration::from_secs(60))
                 .build()
                 .expect("reqwest client"),
-            homeserver: homeserver.into().trim_end_matches('/').to_string(),
         }
     }
 
-    pub fn homeserver(&self) -> &str {
-        &self.homeserver
+    /// Normalize a homeserver URL.
+    pub fn normalize(hs: &str) -> String {
+        hs.trim().trim_end_matches('/').to_string()
     }
 
     /// URL-encoded filter JSON scoped to one room, timeline-only.
@@ -53,6 +52,7 @@ impl Matrix {
     /// POST /_matrix/client/v3/login with m.login.password.
     pub async fn login(
         &self,
+        homeserver: &str,
         user: &str,
         password: &str,
         device_id: &str,
@@ -77,7 +77,7 @@ impl Matrix {
         });
         let res: Value = self
             .http
-            .post(format!("{}/_matrix/client/v3/login", self.homeserver))
+            .post(format!("{}/_matrix/client/v3/login", homeserver))
             .json(&body)
             .send()
             .await?
@@ -99,9 +99,9 @@ impl Matrix {
         })
     }
 
-    pub async fn logout(&self, token: &str) -> Result<()> {
+    pub async fn logout(&self, homeserver: &str, token: &str) -> Result<()> {
         self.http
-            .post(format!("{}/_matrix/client/v3/logout", self.homeserver))
+            .post(format!("{}/_matrix/client/v3/logout", homeserver))
             .bearer_auth(token)
             .send()
             .await?;
@@ -109,13 +109,18 @@ impl Matrix {
     }
 
     /// Resolve a room alias to a room ID.
-    pub async fn resolve_alias(&self, token: &str, alias: &str) -> Result<String> {
+    pub async fn resolve_alias(
+        &self,
+        homeserver: &str,
+        token: &str,
+        alias: &str,
+    ) -> Result<String> {
         let alias_enc = urlencoding::encode(alias);
         let res: Value = self
             .http
             .get(format!(
                 "{}/_matrix/client/v3/directory/room/{alias_enc}",
-                self.homeserver
+                homeserver
             ))
             .bearer_auth(token)
             .send()
@@ -131,13 +136,18 @@ impl Matrix {
     }
 
     /// Fetch joined members of a room. Returns mxids.
-    pub async fn joined_members(&self, token: &str, room_id: &str) -> Result<Vec<String>> {
+    pub async fn joined_members(
+        &self,
+        homeserver: &str,
+        token: &str,
+        room_id: &str,
+    ) -> Result<Vec<String>> {
         let rid = urlencoding::encode(room_id);
         let res: Value = self
             .http
             .get(format!(
                 "{}/_matrix/client/v3/rooms/{rid}/joined_members",
-                self.homeserver
+                homeserver
             ))
             .bearer_auth(token)
             .send()
@@ -152,14 +162,20 @@ impl Matrix {
     }
 
     /// Send a message to a room. Returns event_id.
-    pub async fn send_text(&self, token: &str, room_id: &str, body: &str) -> Result<String> {
+    pub async fn send_text(
+        &self,
+        homeserver: &str,
+        token: &str,
+        room_id: &str,
+        body: &str,
+    ) -> Result<String> {
         let txn = Uuid::new_v4();
         let rid = urlencoding::encode(room_id);
         let res: Value = self
             .http
             .put(format!(
                 "{}/_matrix/client/v3/rooms/{rid}/send/m.room.message/{txn}",
-                self.homeserver
+                homeserver
             ))
             .bearer_auth(token)
             .json(&json!({ "msgtype": "m.text", "body": body }))
@@ -177,6 +193,7 @@ impl Matrix {
     /// Narrow /sync scoped to one room, returning (next_batch, timeline_events).
     async fn sync_room(
         &self,
+        homeserver: &str,
         token: &str,
         room_id: &str,
         since: Option<&str>,
@@ -185,7 +202,7 @@ impl Matrix {
         let filter = Self::room_filter(room_id);
         let mut url = format!(
             "{}/_matrix/client/v3/sync?filter={filter}&timeout={timeout_ms}",
-            self.homeserver
+            homeserver
         );
         if let Some(s) = since {
             url.push_str("&since=");
@@ -227,13 +244,24 @@ impl Matrix {
 
         // Snapshot sync position so we only see events after our message.
         let (since, _) = self
-            .sync_room(&sess.access_token, &sess.admin_room_id, None, 0)
+            .sync_room(
+                &sess.homeserver,
+                &sess.access_token,
+                &sess.admin_room_id,
+                None,
+                0,
+            )
             .await
             .context("initial sync (snapshot)")?;
         debug!(since, "got sync snapshot token");
 
         let our_event = self
-            .send_text(&sess.access_token, &sess.admin_room_id, cmd)
+            .send_text(
+                &sess.homeserver,
+                &sess.access_token,
+                &sess.admin_room_id,
+                cmd,
+            )
             .await
             .context("posting command to admin room")?;
         info!(event_id = %our_event, "command posted");
@@ -253,6 +281,7 @@ impl Matrix {
 
             let (next, events) = self
                 .sync_room(
+                    &sess.homeserver,
                     &sess.access_token,
                     &sess.admin_room_id,
                     Some(&cursor),
@@ -296,6 +325,7 @@ pub struct Session {
     pub user_id: String,
     pub access_token: String,
     pub admin_room_id: String,
+    pub homeserver: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

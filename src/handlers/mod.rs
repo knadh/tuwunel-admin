@@ -146,8 +146,24 @@ pub async fn login_page(State(st): State<Arc<Ctx>>, Query(q): Query<NextQuery>) 
 // Wrap the context.
 fn login_ctx(st: &Ctx, error: Option<&str>, next: &str) -> Context {
     let mut ctx = Context::new();
-    ctx.insert("homeserver", st.matrix.homeserver());
+    let homeservers: Vec<String> = st
+        .config
+        .matrix
+        .homeservers
+        .iter()
+        .map(|h| matrix::Matrix::normalize(h))
+        .filter(|h| !h.is_empty())
+        .collect();
+    let allow_any = st.config.matrix.allow_any_server;
+    ctx.insert("homeservers", &homeservers);
+    ctx.insert("allow_any_server", &allow_any);
     ctx.insert("next", next);
+    if homeservers.is_empty() && !allow_any {
+        ctx.insert(
+            "config_error",
+            "No homeservers are configured. Set [matrix].homeservers or allow_any_server = true.",
+        );
+    }
     if let Some(e) = error {
         ctx.insert("error", e);
     }
@@ -159,6 +175,8 @@ fn login_ctx(st: &Ctx, error: Option<&str>, next: &str) -> Context {
 pub struct LoginForm {
     pub username: String,
     pub password: String,
+    #[serde(default)]
+    pub homeserver: String,
 }
 
 // Handle login form submission.
@@ -181,9 +199,12 @@ pub async fn login_submit(
 
 // Do the auth and login flow, set the session.
 async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()> {
+    let homeserver = pick_homeserver(st, &f)?;
+
     let login = st
         .matrix
         .login(
+            &homeserver,
             f.username.trim(),
             &f.password,
             &st.config.matrix.device_id,
@@ -202,13 +223,13 @@ async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()
 
     let admin_room_id = st
         .matrix
-        .resolve_alias(&login.access_token, &alias)
+        .resolve_alias(&homeserver, &login.access_token, &alias)
         .await
         .map_err(|e| anyhow::anyhow!("resolve admin room {alias}: {e:#}"))?;
 
     let members = st
         .matrix
-        .joined_members(&login.access_token, &admin_room_id)
+        .joined_members(&homeserver, &login.access_token, &admin_room_id)
         .await?;
     if !members.iter().any(|m| m == &login.user_id) {
         anyhow::bail!(
@@ -222,15 +243,45 @@ async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()
         user_id: login.user_id,
         access_token: login.access_token,
         admin_room_id,
+        homeserver,
     };
     session.insert(SESS_KEY, &sess).await?;
     Ok(())
 }
 
+// Pick and validate the homeserver URL from the submitted login form.
+fn pick_homeserver(st: &Ctx, f: &LoginForm) -> anyhow::Result<String> {
+    let configured: Vec<String> = st
+        .config
+        .matrix
+        .homeservers
+        .iter()
+        .map(|h| matrix::Matrix::normalize(h))
+        .filter(|h| !h.is_empty())
+        .collect();
+    let allow_any = st.config.matrix.allow_any_server;
+
+    if configured.is_empty() && !allow_any {
+        anyhow::bail!("no homeservers are configured");
+    }
+
+    let submitted = matrix::Matrix::normalize(&f.homeserver);
+    if submitted.is_empty() {
+        anyhow::bail!("select or enter a homeserver URL");
+    }
+    if !(submitted.starts_with("http://") || submitted.starts_with("https://")) {
+        anyhow::bail!("homeserver URL must start with http:// or https://");
+    }
+    if !allow_any && !configured.iter().any(|h| h == &submitted) {
+        anyhow::bail!("homeserver is not in the allowed list");
+    }
+    Ok(submitted)
+}
+
 // Delete the session and logout.
 pub async fn logout(State(st): State<Arc<Ctx>>, session: Session) -> Response {
     if let Ok(Some(s)) = session.get::<matrix::Session>(SESS_KEY).await {
-        let _ = st.matrix.logout(&s.access_token).await;
+        let _ = st.matrix.logout(&s.homeserver, &s.access_token).await;
     }
     let _ = session.flush().await;
     Redirect::to("/login").into_response()
@@ -271,10 +322,10 @@ pub async fn index(
 }
 
 // Wrap the context with common fields.
-pub(super) fn base_ctx(st: &Ctx, sess: &matrix::Session, active: &str) -> Context {
+pub(super) fn base_ctx(_st: &Ctx, sess: &matrix::Session, active: &str) -> Context {
     let mut ctx = Context::new();
     ctx.insert("user_id", &sess.user_id);
-    ctx.insert("homeserver", st.matrix.homeserver());
+    ctx.insert("homeserver", &sess.homeserver);
     ctx.insert("admin_room_id", &sess.admin_room_id);
     ctx.insert("modules", commands::MODULES);
     ctx.insert("active", active);

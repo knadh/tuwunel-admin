@@ -42,7 +42,7 @@ pub async fn list(mx: &matrix::Matrix, sess: &matrix::Session) -> Result<Vec<Use
     let mxids = parse::list_users(&users_reply.body).unwrap_or_default();
 
     let admins: std::collections::HashSet<String> = mx
-        .joined_members(&sess.access_token, &sess.admin_room_id)
+        .joined_members(&sess.homeserver, &sess.access_token, &sess.admin_room_id)
         .await
         .unwrap_or_default()
         .into_iter()

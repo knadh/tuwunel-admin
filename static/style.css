@@ -220,3 +220,13 @@ main pre {
     background-color: var(--accent);
   }
 }
+
+.login-form {
+    fieldset.group select {
+      max-width: 40%;
+      flex: 0 0 40%;
+    }
+    .homeserver label {
+      margin-bottom: var(--space-1);
+    }
+}

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tower_sessions::Session;
 
 use super::{
-    base_ctx, checkbox, redirect_with_err, insert_flash, install_log, redirect, render,
+    base_ctx, checkbox, insert_flash, install_log, redirect, redirect_with_err, render,
     run_and_flash, take_flash,
 };
 use crate::{matrix, tokens, Ctx};

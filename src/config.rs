@@ -15,7 +15,10 @@ pub struct Server {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Matrix {
-    pub homeserver: String,
+    #[serde(default)]
+    pub homeservers: Vec<String>,
+    #[serde(default)]
+    pub allow_any_server: bool,
     #[serde(default)]
     pub admin_bot: String,
     #[serde(default)]

@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
 
     // Init templates.
     let tera = Tera::new("templates/**/*.html")?;
-    let matrix = matrix::Matrix::new(&cfg.matrix.homeserver);
+    let matrix = matrix::Matrix::new();
     let state = Arc::new(Ctx {
         config: cfg,
         tera,

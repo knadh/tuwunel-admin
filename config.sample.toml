@@ -4,8 +4,13 @@ bind = "0.0.0.0:8080"
 
 
 [matrix]
-# Homeserver base URL.
-homeserver = "https://chat.example.net"
+# Homeserver base URLs offered on the login page. The user picks one from a dropdown.
+# Leave empty and set allow_any_server = true to let users type any URL.
+homeservers = ["https://chat.example.net"]
+
+# If true, show an input on the login page so users can override / enter a custom URL.
+# If false, only the configured homeservers are accepted.
+allow_any_server = false
 
 # Bot user in the admin room. Conduwuit/tuwunel convention is the server localpart.
 # e.g. for chat.example.net: "@tuwunel:chat.example.net" or "@conduit:chat.example.net".
