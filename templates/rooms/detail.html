@@ -13,29 +13,32 @@
   <article>
     <header class="mb-6">
       <p class="mb-2"><small><a href="/rooms">← All rooms</a></small></p>
-      {% if detail and detail.row.name %}
-        <h1 class="m-0">{{ detail.row.name }}</h1>
-        <p class="mt-2"><small class="muted">{{ room_id }}</small></p>
-      {% else %}
-        <h1 class="m-0">{{ room_id }}</h1>
-      {% endif %}
+      <div class="row">
+        <div class="col-6">
+          {% if detail and detail.row.name %}
+            <h1 class="m-0">{{ detail.row.name }}</h1>
+            <p class="mt-2 m-0"><small class="muted">{{ room_id }}</small></p>
+          {% else %}
+            <h1 class="m-0">{{ room_id }}</h1>
+          {% endif %}
+        </div>
+        <div class="col-6 align-right">
+          {% if detail and detail.topic %}
+            <small class="muted">{{ detail.topic }}</small>
+          {% endif %}
+        </div>
+      </div>
       {% if detail %}
         <p class="mt-2 flex gap-2 items-center flex-wrap">
           {% if detail.row.banned %}
             <span class="badge" data-variant="danger">banned</span>
           {% else %}
-            <span class="badge outline">ok</span>
+            <span class="badge outline" data-variant="success">ok</span>
           {% endif %}
           {% if detail.row.federated %}<span class="badge outline">federated</span>{% endif %}
           {% if detail.row.published %}<span class="badge outline">published</span>{% endif %}
           {% if detail.row.members %}<small class="muted">{{ detail.row.members }} members</small>{% endif %}
         </p>
-        {% if detail.topic %}
-          <details class="mt-4">
-            <summary><small>Topic</small></summary>
-            <p class="mt-2"><small>{{ detail.topic }}</small></p>
-          </details>
-        {% endif %}
       {% endif %}
     </header>
 
@@ -47,24 +50,56 @@
       <section class="mb-6 mt-6">
         <h2 class="mb-4">Actions</h2>
         <div class="flex gap-2 flex-wrap">
+          {% if detail.row.published %}
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/unpublish" class="inline-form">
+              <button type="submit" class="outline" data-variant="danger">Unpublish from directory</button>
+            </form>
+          {% else %}
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/publish" class="inline-form">
+              <button type="submit" class="outline">Publish to directory</button>
+            </form>
+          {% endif %}
+          {% if detail.row.federated %}
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/disable" class="inline-form">
+              <button type="submit" class="outline" data-variant="danger">Disable federation</button>
+            </form>
+          {% else %}
+            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/enable" class="inline-form">
+              <button type="submit" class="outline">Enable federation</button>
+            </form>
+          {% endif %}
+          <button class="outline" commandfor="dlg-force-join" command="show-modal">Force-join local users</button>
           {% if detail.row.banned %}
             <button popovertarget="pop-unban" class="outline">Unban</button>
           {% else %}
             <button popovertarget="pop-ban" class="outline" data-variant="danger">Ban</button>
           {% endif %}
-          <button class="outline" data-variant="danger" commandfor="dlg-del" command="show-modal">Delete</button>
+          <button data-variant="danger" commandfor="dlg-del" command="show-modal">Delete</button>
         </div>
       </section>
 
       <hr />
       <section class="mb-6 mt-6">
-        <h2 class="mb-4">Aliases {% if detail.aliases %}({{ detail.aliases | length }}){% endif %}</h2>
+        <div class="row mb-4">
+          <div class="col-6">
+            <h2 class="m-0">Aliases {% if detail.aliases %}({{ detail.aliases | length }}){% endif %}</h2>
+          </div>
+          <div class="col-6 flex flex-end items-center">
+            <button class="outline" commandfor="dlg-add-alias" command="show-modal">＋ Add alias</button>
+          </div>
+        </div>
         {% if detail.aliases %}
           <table>
+            <thead>
+              <tr>
+                <th>Alias</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {% for a in detail.aliases %}
                 <tr>
-                  <td><code>{{ a }}</code></td>
+                  <td>{{ a }}</td>
                   <td class="text-right">
                     <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases/remove"
                           onsubmit="return confirm('Remove alias {{ a }}?')">
@@ -79,88 +114,6 @@
         {% else %}
           <p><small class="muted">No aliases point at this room.</small></p>
         {% endif %}
-        <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases" class="flex gap-2 mt-4 flex-wrap items-end">
-          <label data-field class="m-0" style="flex:1 1 240px">
-            <small class="muted">Add alias (localpart only — without `#` and server)</small>
-            <input type="text" name="localpart" placeholder="roomname" required autocomplete="off">
-          </label>
-          <label data-field class="m-0">
-            <input type="checkbox" name="force" value="on"> Force
-          </label>
-          <button type="submit" class="outline">Add alias</button>
-        </form>
-      </section>
-
-      <hr />
-      <section class="mb-6 mt-6">
-        <h2 class="mb-4">Directory</h2>
-        <p class="mb-4">
-          {% if detail.row.published %}
-            <span class="badge outline">published</span>
-            This room appears in the public directory on {{ homeserver }}.
-          {% else %}
-            <span class="badge" data-variant="danger">unpublished</span>
-            This room is not in the public directory.
-          {% endif %}
-        </p>
-        {% if detail.row.published %}
-          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/unpublish" class="inline-form">
-            <button type="submit" class="outline" data-variant="danger">Unpublish</button>
-          </form>
-        {% else %}
-          <form method="post" action="/rooms/{{ room_id | urlencode }}/directory/publish" class="inline-form">
-            <button type="submit" class="outline">Publish</button>
-          </form>
-        {% endif %}
-      </section>
-
-      <hr />
-      <section class="mb-6 mt-6">
-        <h2 class="mb-4">Federation</h2>
-        <p class="mb-4">
-          {% if detail.row.federated %}
-            <span class="badge outline">enabled</span>
-            Incoming federation is enabled for this room.
-          {% else %}
-            <span class="badge" data-variant="danger">disabled</span>
-            Incoming federation is disabled for this room.
-          {% endif %}
-        </p>
-        <div class="flex gap-2 flex-wrap">
-          {% if detail.row.federated %}
-            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/disable" class="inline-form">
-              <button type="submit" class="outline" data-variant="danger">Disable federation</button>
-            </form>
-          {% else %}
-            <form method="post" action="/rooms/{{ room_id | urlencode }}/federation/enable" class="inline-form">
-              <button type="submit" class="outline">Enable federation</button>
-            </form>
-          {% endif %}
-        </div>
-      </section>
-
-      <hr />
-      <section class="mb-6 mt-6">
-        <h2 class="mb-4">Force-join local users</h2>
-        <p><small class="muted">Force a list of local users — or all local users — into this room. Guards against accidents with an explicit confirm.</small></p>
-        <form method="post" action="/rooms/{{ room_id | urlencode }}/force-join-users"
-              x-data="{ allUsers: false }"
-              onsubmit="return confirm('Force-join users to this room? This bypasses normal join rules.')">
-          <label data-field>
-            <input type="checkbox" name="all" value="on" x-model="allUsers"> Join <strong>every</strong> local user to this room
-          </label>
-          <label data-field x-show="!allUsers">
-            User list (one mxid per line)
-            <textarea name="mxids" rows="6" placeholder="@alice:server
-@bob:server"></textarea>
-          </label>
-          <label data-field>
-            <input type="checkbox" name="confirm" value="on" required> Yes, I want to do this
-          </label>
-          <footer class="hstack">
-            <button type="submit" class="outline" data-variant="danger">Force-join</button>
-          </footer>
-        </form>
       </section>
 
       <hr />
@@ -218,6 +171,53 @@
       </form>
     </footer>
   </article>
+
+  <dialog id="dlg-add-alias">
+    <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases">
+      <header>
+        <h3>Add alias</h3>
+        <p><small class="muted">Name (without <strong>#</strong> and server).</small></p>
+      </header>
+      <section>
+        <label data-field>
+          Name
+          <input type="text" name="localpart" placeholder="roomname" required autocomplete="off">
+        </label>
+        <label data-field>
+          <input type="checkbox" name="force" value="on"> Force
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-add-alias" command="close">Cancel</button>
+        <button type="submit">Add alias</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-force-join">
+    <form method="post" action="/rooms/{{ room_id | urlencode }}/force-join-users" x-data="{ allUsers: false }">
+      <header>
+        <h3>Force-join local users</h3>
+        <p><small class="muted">Force a list of local users (or all local users) into this room. Bypasses normal join rules.</small></p>
+      </header>
+      <section>
+        <label data-field>
+          <input type="checkbox" name="all" value="on" x-model="allUsers"> Join <strong>every</strong> local user to this room
+        </label>
+        <label data-field x-show="!allUsers">
+          User list (one mxid per line)
+          <textarea name="mxids" rows="6" placeholder="@alice:server&#10;@bob:server"></textarea>
+        </label>
+        <label data-field>
+          <input type="checkbox" name="confirm" value="on" required> Yes, I want to do this
+        </label>
+      </section>
+      <footer>
+        <button type="button" class="outline" commandfor="dlg-force-join" command="close">Cancel</button>
+        <button type="submit" data-variant="danger">Force-join</button>
+      </footer>
+    </form>
+  </dialog>
 
   <dialog id="dlg-del">
     <form method="post" action="/rooms/{{ room_id | urlencode }}/delete">
