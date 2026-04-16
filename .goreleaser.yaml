@@ -25,9 +25,6 @@ archives:
     files:
       - README.md
       - LICENSE
-      - config.sample.toml
-      - static/**
-      - templates/**
 
 changelog:
   sort: asc
