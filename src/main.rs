@@ -23,7 +23,10 @@ use clap::{Parser, Subcommand};
 use std::sync::Arc;
 use tera::Tera;
 use tower_http::{services::ServeDir, set_header::SetResponseHeaderLayer};
-use tower_sessions::{MemoryStore, SessionManagerLayer};
+use tower_sessions::{
+    cookie::{time::Duration, SameSite},
+    Expiry, MemoryStore, SessionManagerLayer,
+};
 
 #[derive(Parser)]
 #[command(name = "tuwunel-admin")]
@@ -77,7 +80,9 @@ async fn main() -> Result<()> {
 
     let sess = SessionManagerLayer::new(MemoryStore::default())
         .with_secure(false)
-        .with_same_site(tower_sessions::cookie::SameSite::Lax);
+        .with_http_only(true)
+        .with_same_site(SameSite::Lax)
+        .with_expiry(Expiry::OnInactivity(Duration::hours(8)));
 
     let protected = Router::new()
         .route("/", get(handlers::index))

@@ -242,6 +242,8 @@ async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()
         admin_room_id,
         homeserver,
     };
+    // Rotate the session ID on privilege change to defeat session fixation.
+    session.cycle_id().await?;
     session.insert(SESS_KEY, &sess).await?;
     Ok(())
 }
