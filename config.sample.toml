@@ -10,6 +10,9 @@ homeservers = ["https://chat.example.net"]
 
 # If true, show an input on the login page so users can override / enter a custom URL.
 # If false, only the configured homeservers are accepted.
+#
+# IMPORTANT: Enabling this option can lead to security issues if users enters malicious (or private) URLs.
+#            Only enable this in a secure trusted environment.
 allow_any_server = false
 
 # Bot user in the admin room. Conduwuit/tuwunel convention is the server localpart.
