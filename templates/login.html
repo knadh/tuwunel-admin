@@ -13,10 +13,10 @@
     <br />
 
     {% if config_error %}
-      <div role="alert" class="alert danger">{{ config_error }}</div>
+      <div role="alert" data-variant="danger">{{ config_error }}</div>
     {% else %}
       {% if error %}
-        <div role="alert" class="alert danger">{{ error }}</div>
+        <div role="alert" data-variant="danger">{{ error }}</div>
       {% endif %}
 
       <form method="post" action="/login{% if next and next != '/' %}?next={{ next | urlencode }}{% endif %}" id="login-form" class="login-form">

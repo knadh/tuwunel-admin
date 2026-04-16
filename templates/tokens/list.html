@@ -21,7 +21,7 @@
               <input type="search" x-model.debounce.150ms="q" placeholder="Search token…" autocomplete="off">
             </label>
           </div>
-          <div class="col-6 flex gap-4 flex-end">
+          <div class="col-6 flex gap-4 justify-end">
             <label data-field class="m-0">
               <select x-model="status">
                 <option value="all">All tokens</option>
@@ -45,11 +45,11 @@
           <thead>
             <tr>
               <th>Token</th>
-              <th class="text-right">Used</th>
-              <th class="text-right">Pending</th>
+              <th class="align-right">Used</th>
+              <th class="align-right">Pending</th>
               <th>Limit</th>
               <th>Expires</th>
-              <th class="text-right">Actions</th>
+              <th class="align-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -60,25 +60,25 @@
                 data-pending="{{ t.pending }}"
                 data-expiration="{{ t.expiration | default(value='') }}">
                 <td><code>{{ t.token }}</code></td>
-                <td class="text-right">{{ t.completed }}</td>
-                <td class="text-right">{{ t.pending }}</td>
+                <td class="align-right">{{ t.completed }}</td>
+                <td class="align-right">{{ t.pending }}</td>
                 <td>
                   {% if t.uses_allowed %}
                     <small>{{ t.completed }}/{{ t.uses_allowed }}</small>
                     {% if t.uses_allowed == 1 %}<span class="badge outline">one-time</span>{% endif %}
                   {% else %}
-                    <small class="muted">unlimited</small>
+                    <small class="text-light">unlimited</small>
                   {% endif %}
                 </td>
                 <td>
                   {% if t.expiration %}
                     <small>{{ t.expiration }}</small>
                   {% else %}
-                    <small class="muted">never</small>
+                    <small class="text-light">never</small>
                   {% endif %}
                 </td>
                 <td>
-                  <div class="flex gap-2 flex-end flex-wrap">
+                  <div class="flex gap-2 justify-end flex-wrap">
                     <button class="outline small" @click="copy('{{ t.token }}')">Copy</button>
                     <button class="outline small" data-variant="danger" @click="target='{{ t.token }}'" popovertarget="pop-revoke">Revoke</button>
                   </div>
@@ -90,7 +90,7 @@
       </section>
     {% else %}
       <section>
-        <p class="muted">No registration tokens.</p>
+        <p class="text-light">No registration tokens.</p>
       </section>
     {% endif %}
 
@@ -102,7 +102,7 @@
   <article class="card" popover id="pop-revoke">
     <header>
       <h4>Revoke token?</h4>
-      <p><small class="muted" x-text="target"></small></p>
+      <p><small class="text-light" x-text="target"></small></p>
       <p><small>Anyone still holding this token won't be able to register with it.</small></p>
     </header>
     <br />

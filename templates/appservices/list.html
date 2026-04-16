@@ -13,7 +13,7 @@
 
     {% include "partials/flash.html" %}
 
-    {% if error %}<div role="alert" class="alert danger mb-6">{{ error }}</div>{% endif %}
+    {% if error %}<div role="alert" data-variant="danger" class="mb-6">{{ error }}</div>{% endif %}
 
     {% if appservices %}
       <section>
@@ -23,7 +23,7 @@
               <input type="search" x-model.debounce.150ms="q" placeholder="Search appservice ID…" autocomplete="off">
             </label>
           </div>
-          <div class="col-6 flex gap-4 flex-end">
+          <div class="col-6 flex gap-4 justify-end">
             <label data-field class="m-0">
               <select x-model="sort">
                 <option value="id">Sort: ID (A→Z)</option>
@@ -37,7 +37,7 @@
           <thead>
             <tr>
               <th>ID</th>
-              <th class="text-right">Actions</th>
+              <th class="align-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -47,7 +47,7 @@
                   <a href="/appservices/{{ a.id | urlencode }}">{{ a.id }}</a>
                 </td>
                 <td>
-                  <div class="flex gap-2 flex-end flex-wrap">
+                  <div class="flex gap-2 justify-end flex-wrap">
                     <a class="outline small" role="button" href="/appservices/{{ a.id | urlencode }}">View config</a>
                     <button class="outline small" data-variant="danger" @click="target='{{ a.id }}'" popovertarget="pop-unreg">Unregister</button>
                   </div>
@@ -59,7 +59,7 @@
       </section>
     {% else %}
       <section>
-        <p class="muted">No appservices registered.</p>
+        <p class="text-light">No appservices registered.</p>
       </section>
     {% endif %}
 
@@ -71,7 +71,7 @@
   <article class="card" popover id="pop-unreg">
     <header>
       <h4>Unregister appservice?</h4>
-      <p><small class="muted" x-text="target"></small></p>
+      <p><small class="text-light" x-text="target"></small></p>
       <p><small>The registration will be removed. Running bridge processes will stop being able to authenticate.</small></p>
     </header>
     <br />

@@ -8,7 +8,7 @@
   <article>
     <header class="mb-6">
       <h1 class="m-0">Federation</h1>
-      <p class="mt-2"><small class="muted">Tools for diagnosing and managing this server's federation with other homeservers.</small></p>
+      <p class="mt-2"><small class="text-light">Tools for diagnosing and managing this server's federation with other homeservers.</small></p>
     </header>
 
     {% include "partials/flash.html" %}
@@ -16,7 +16,7 @@
     <article class="card mb-6">
       <header>
         <h3>Incoming federation{% if overview.incoming %} ({{ overview.incoming | length }}){% endif %}</h3>
-        <p><small class="muted">Rooms currently processing incoming PDUs.</small></p>
+        <p><small class="text-light">Rooms currently processing incoming PDUs.</small></p>
       </header>
       {% if overview.incoming %}
         <table>
@@ -30,14 +30,14 @@
           </tbody>
         </table>
       {% else %}
-        <p><small class="muted">No rooms reported. (Command may be temporarily disabled on this server.)</small></p>
+        <p><small class="text-light">No rooms reported. (Command may be temporarily disabled on this server.)</small></p>
       {% endif %}
     </article>
 
     <article class="card mb-6">
       <header>
         <h3>Fetch support info</h3>
-        <p><small class="muted">Retrieve <code>/.well-known/matrix/support</code> from a server for moderation contact details.</small></p>
+        <p><small class="text-light">Retrieve <code>/.well-known/matrix/support</code> from a server for moderation contact details.</small></p>
       </header>
       <form method="post" action="/federation/fetch-well-known" class="flex gap-2 flex-wrap items-end">
         <label data-field class="m-0" style="flex:1 1 300px">
@@ -53,7 +53,7 @@
     <article class="card mb-6">
       <header>
         <h3>Remote user → shared rooms</h3>
-        <p><small class="muted">List rooms we share with a remote user.</small></p>
+        <p><small class="text-light">List rooms we share with a remote user.</small></p>
       </header>
       <form method="post" action="/federation/remote-user-in-rooms" class="flex gap-2 flex-wrap items-end">
         <label data-field class="m-0" style="flex:1 1 300px">

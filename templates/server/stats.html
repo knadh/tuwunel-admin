@@ -9,7 +9,7 @@
     <header class="mb-4">
       <h1 class="m-0">Stats</h1>
       {% if stats and stats.uptime %}
-        <p class="mt-2 m-0"><small class="muted">Uptime: {{ stats.uptime }}</small></p>
+        <p class="mt-2 m-0"><small class="text-light">Uptime: {{ stats.uptime }}</small></p>
       {% endif %}
     </header>
 
@@ -38,7 +38,7 @@
         <article class="card mb-6">
           <header>
             <h3>Features ({{ stats.features | length }})</h3>
-            <p><small class="muted">Compile-time feature flags.</small></p>
+            <p><small class="text-light">Compile-time feature flags.</small></p>
           </header>
           <table class="kv-table">
             <tbody>

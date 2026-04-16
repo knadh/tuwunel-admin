@@ -5,26 +5,26 @@
   <article>
     <header class="mb-6">
       <h1 class="m-0">{{ homeserver | replace(from="https://", to="") | replace(from="http://", to="") | trim_end_matches(pat="/") }}</h1>
-      <p class="mt-2 muted">Admin room: {{ admin_room_id }}</small></p>
+      <p class="mt-2 text-light">Admin room: {{ admin_room_id }}</small></p>
     </header>
 
     {% if dash %}
     <section class="stats-grid mb-6">
       <article class="card stat">
         <header class="stat-head">
-          <small class="muted">Server</small>
+          <small class="text-light">Server</small>
           <span class="badge" data-variant="success">live</span>
         </header>
         <div class="stat-value">{% if dash.uptime %}{{ dash.uptime }}{% else %}–{% endif %}</div>
         <small class="stat-sub">Uptime</small>
         <dl class="kv mt-4">
           {% if dash.db_mem_buffers %}
-          <div class="kv-row"><dt><small class="muted">DB memory buffers</small></dt><dd><strong>{{ dash.db_mem_buffers }}</strong></dd></div>
+          <div class="kv-row"><dt><small class="text-light">DB memory buffers</small></dt><dd><strong>{{ dash.db_mem_buffers }}</strong></dd></div>
           {% endif %}
           {% if dash.db_row_cache %}
-          <div class="kv-row"><dt><small class="muted">DB row cache</small></dt><dd><strong>{{ dash.db_row_cache }}</strong></dd></div>
+          <div class="kv-row"><dt><small class="text-light">DB row cache</small></dt><dd><strong>{{ dash.db_row_cache }}</strong></dd></div>
           {% elif dash.db_table_readers %}
-          <div class="kv-row"><dt><small class="muted">DB table readers</small></dt><dd><strong>{{ dash.db_table_readers }}</strong></dd></div>
+          <div class="kv-row"><dt><small class="text-light">DB table readers</small></dt><dd><strong>{{ dash.db_table_readers }}</strong></dd></div>
           {% endif %}
         </dl>
         <footer class="mt-4"><a href="/server/stats"><small>Stats →</small></a></footer>
@@ -32,7 +32,7 @@
 
       <article class="card stat">
         <header class="stat-head">
-          <small class="muted">Users</small>
+          <small class="text-light">Users</small>
           <a href="/users"><small>view →</small></a>
         </header>
         <div class="stat-split">
@@ -50,7 +50,7 @@
 
       <article class="card stat">
         <header class="stat-head">
-          <small class="muted">Rooms</small>
+          <small class="text-light">Rooms</small>
           <a href="/rooms"><small>view →</small></a>
         </header>
         <div class="stat-split">
@@ -73,7 +73,7 @@
 
       <article class="card stat">
         <header class="stat-head">
-          <small class="muted">Features</small>
+          <small class="text-light">Features</small>
           <a href="/server"><small>view →</small></a>
         </header>
         <div class="stat-value">{{ dash.features_enabled }}<span class="stat-suffix">/{{ dash.features_total }}</span></div>
@@ -82,7 +82,7 @@
 
       <article class="card stat">
         <header class="stat-head">
-          <small class="muted">Appservices</small>
+          <small class="text-light">Appservices</small>
           <a href="/appservices"><small>view →</small></a>
         </header>
         <div class="stat-value">{{ dash.appservices_count }}</div>
@@ -91,7 +91,7 @@
 
       <article class="card stat">
         <header class="stat-head">
-          <small class="muted">Federation</small>
+          <small class="text-light">Federation</small>
           <a href="/federation"><small>view →</small></a>
         </header>
         <div class="stat-value">{{ dash.federated_rooms }}</div>

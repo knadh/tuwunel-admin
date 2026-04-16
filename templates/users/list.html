@@ -20,7 +20,7 @@
             <input type="search" x-model.debounce.150ms="q" placeholder="Search mxid…" autocomplete="off">
           </label>
         </div>
-        <div class="col-6 flex gap-4 flex-end items-end">
+        <div class="col-6 flex gap-4 justify-end items-end">
           <button x-show="selected.length > 0" x-cloak data-variant="danger"
                   commandfor="dlg-deactivate-all" command="show-modal"
                   x-text="`Deactivate (${selected.length})`"></button>
@@ -47,7 +47,7 @@
             <th>MXID</th>
             <th>Role</th>
             <th>Last active</th>
-            <th class="text-right">Actions</th>
+            <th class="align-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -57,7 +57,7 @@
             <td><input type="checkbox" :value="'{{ u.mxid }}'" x-model="selected"></td>
             <td>
               <a href="/users/{{ u.mxid | urlencode }}">{{ u.mxid | split(pat=":") | first | trim_start_matches(pat="@") }}</a>
-              <br><small class="muted">{{ u.mxid }}</small>
+              <br><small class="text-light">{{ u.mxid }}</small>
             </td>
             <td>
               {% if u.is_admin %}
@@ -68,7 +68,7 @@
             </td>
             <td>{% if u.last_active %}<small>{{ u.last_active }}</small>{% else %}<small>—</small>{% endif %}</td>
             <td>
-              <div class="flex gap-2 flex-end flex-wrap">
+              <div class="flex gap-2 justify-end flex-wrap">
                 <button class="outline" @click="openReset('{{ u.mxid }}')">Reset password</button>
                 {% if not u.is_admin %}
                   <button popovertarget="pop-mk" class="outline" @click="target = '{{ u.mxid }}'">Make admin</button>

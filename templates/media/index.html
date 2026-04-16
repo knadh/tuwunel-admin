@@ -8,7 +8,7 @@
   <article>
     <header class="mb-6">
       <h1 class="m-0">Media</h1>
-      <p class="mt-2"><small class="muted">Tuwunel doesn't index uploaded media for listing. Use the tools below to look up or purge content.</small></p>
+      <p class="mt-2"><small class="text-light">Tuwunel doesn't index uploaded media for listing. Use the tools below to look up or purge content.</small></p>
     </header>
 
     {% include "partials/flash.html" %}
@@ -16,7 +16,7 @@
     <article class="card mb-6">
       <header>
         <h3>Lookup file</h3>
-        <p><small class="muted">Fetch metadata for a single upload by its MXC URL.</small></p>
+        <p><small class="text-light">Fetch metadata for a single upload by its MXC URL.</small></p>
       </header>
       <form method="get" action="/media" class="flex gap-2 flex-wrap items-end">
         <label data-field class="m-0" style="flex:1 1 420px">
@@ -36,7 +36,7 @@
             <tbody>
               {% for f in file_info.fields %}
                 <tr>
-                  <td style="width:200px"><small class="muted">{{ f.0 }}</small></td>
+                  <td style="width:200px"><small class="text-light">{{ f.0 }}</small></td>
                   <td><code>{{ f.1 }}</code></td>
                 </tr>
               {% endfor %}
@@ -58,7 +58,7 @@
     <article class="card mb-6">
       <header>
         <h3>Fetch remote file</h3>
-        <p><small class="muted">Pull a remote file/thumbnail into the local cache for diagnosis.</small></p>
+        <p><small class="text-light">Pull a remote file/thumbnail into the local cache for diagnosis.</small></p>
       </header>
       <form method="post" action="/media/fetch-remote">
         <label data-field>
@@ -97,7 +97,7 @@
     <article class="card mb-6">
       <header>
         <h3>Delete by MXC URL <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Remove one file by its MXC URL.</small></p>
+        <p><small class="text-light">Remove one file by its MXC URL.</small></p>
       </header>
       <form method="post" action="/media/delete"
             onsubmit="return confirm('Delete this media? This cannot be undone.')">
@@ -114,7 +114,7 @@
     <article class="card mb-6">
       <header>
         <h3>Delete by event <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Remove all media embedded in a specific event (image + thumbnail).</small></p>
+        <p><small class="text-light">Remove all media embedded in a specific event (image + thumbnail).</small></p>
       </header>
       <form method="post" action="/media/delete-by-event"
             onsubmit="return confirm('Delete media referenced by this event?')">
@@ -131,7 +131,7 @@
     <article class="card mb-6">
       <header>
         <h3>Bulk delete MXC list <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Paste a newline-separated list of MXC URLs. Errors inside the batch are ignored.</small></p>
+        <p><small class="text-light">Paste a newline-separated list of MXC URLs. Errors inside the batch are ignored.</small></p>
       </header>
       <form method="post" action="/media/delete-list"
             onsubmit="return confirm('Delete all these media files? This cannot be undone.')">
@@ -149,7 +149,7 @@ mxc://server/b" required></textarea>
     <article class="card mb-6">
       <header>
         <h3>Delete by age <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Free disk by deleting media created before/after a relative duration. Accepts <code>30d</code>, <code>6h</code>, etc.</small></p>
+        <p><small class="text-light">Free disk by deleting media created before/after a relative duration. Accepts <code>30d</code>, <code>6h</code>, etc.</small></p>
       </header>
       <form method="post" action="/media/delete-range"
             onsubmit="return confirm('Purge media in this range? This cannot be undone.')">
@@ -178,7 +178,7 @@ mxc://server/b" required></textarea>
     <article class="card mb-6">
       <header>
         <h3>Delete all media from user <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Remove every file uploaded by a single local account.</small></p>
+        <p><small class="text-light">Remove every file uploaded by a single local account.</small></p>
       </header>
       <form method="post" action="/media/delete-from-user"
             onsubmit="return confirm('Delete every file uploaded by this user? This cannot be undone.')">
@@ -195,7 +195,7 @@ mxc://server/b" required></textarea>
     <article class="card mb-6">
       <header>
         <h3>Delete all media from server <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Remove every cached file from a remote server.</small></p>
+        <p><small class="text-light">Remove every cached file from a remote server.</small></p>
       </header>
       <form method="post" action="/media/delete-from-server"
             onsubmit="return confirm('Delete every file from this server? This cannot be undone.')">

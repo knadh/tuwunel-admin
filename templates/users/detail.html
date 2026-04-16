@@ -13,7 +13,7 @@
         <p class="mt-2 flex gap-2 items-center">
           {% if detail.row.is_admin %}<span class="badge" data-variant="success">admin</span>{% else %}<span class="badge outline">user</span>{% endif %}
           {% if detail.row.last_active %}<small>Last active {{ detail.row.last_active }}</small>{% endif %}
-          {% if detail.devices %}<small class="muted">· {{ detail.devices | length }} device(s)</small>{% endif %}
+          {% if detail.devices %}<small class="text-light">· {{ detail.devices | length }} device(s)</small>{% endif %}
         </p>
       {% endif %}
     </header>
@@ -74,17 +74,17 @@
         <h2 class="mb-4">Rooms {% if detail.joined_rooms %} ({{ detail.joined_rooms | length }}){% endif %}</h2>
         {% if detail.joined_rooms %}
           <table>
-            <thead><tr><th>Name</th><th class="text-right">Members</th><th class="text-right">Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th class="align-right">Members</th><th class="align-right">Actions</th></tr></thead>
             <tbody>
               {% for r in detail.joined_rooms %}
                 <tr>
                   <td>
-                    <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="muted">(unnamed)</em>{% endif %}</a>
-                    <br><small class="muted">{{ r.room_id }}</small>
+                    <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="text-light">(unnamed)</em>{% endif %}</a>
+                    <br><small class="text-light">{{ r.room_id }}</small>
                   </td>
-                  <td class="text-right">{{ r.members }}</td>
+                  <td class="align-right">{{ r.members }}</td>
                   <td>
-                    <div class="flex gap-2 flex-end flex-wrap">
+                    <div class="flex gap-2 justify-end flex-wrap">
                       <button class="outline small" @click="openPromote('{{ r.room_id }}')">Promote</button>
                       <button class="outline small" data-variant="danger" @click="openDemote('{{ r.room_id }}')">Demote</button>
                       <button class="outline small" @click="openTag('{{ r.room_id }}')">Tag</button>
@@ -104,16 +104,16 @@
         <h2 class="mb-4">Devices {% if detail.devices %}({{ detail.devices | length }}){% endif %}</h2>
         {% if detail.devices %}
           <table>
-            <thead><tr><th>Device</th><th>Display name</th><th>Last IP</th><th>Last seen</th><th class="text-right">Actions</th></tr></thead>
+            <thead><tr><th>Device</th><th>Display name</th><th>Last IP</th><th>Last seen</th><th class="align-right">Actions</th></tr></thead>
             <tbody>
               {% for d in detail.devices %}
                 <tr>
                   <td><code>{{ d.device_id }}</code></td>
-                  <td>{% if d.display_name %}{{ d.display_name }}{% else %}<small class="muted">—</small>{% endif %}</td>
-                  <td>{% if d.last_seen_ip %}<small>{{ d.last_seen_ip }}</small>{% else %}<small class="muted">—</small>{% endif %}</td>
-                  <td>{% if d.last_seen_ts %}<small>{{ d.last_seen_ts }}</small>{% else %}<small class="muted">—</small>{% endif %}</td>
+                  <td>{% if d.display_name %}{{ d.display_name }}{% else %}<small class="text-light">—</small>{% endif %}</td>
+                  <td>{% if d.last_seen_ip %}<small>{{ d.last_seen_ip }}</small>{% else %}<small class="text-light">—</small>{% endif %}</td>
+                  <td>{% if d.last_seen_ts %}<small>{{ d.last_seen_ts }}</small>{% else %}<small class="text-light">—</small>{% endif %}</td>
                   <td>
-                    <div class="flex gap-2 flex-end">
+                    <div class="flex gap-2 justify-end">
                       <form method="post" action="/users/{{ mxid | urlencode }}/devices/{{ d.device_id | urlencode }}/delete"
                             onsubmit="return confirm('Revoke device {{ d.device_id }}? The session will be signed out.')">
                         <button type="submit" class="outline small" data-variant="danger">Revoke</button>
@@ -125,7 +125,7 @@
             </tbody>
           </table>
         {% else %}
-          <p><small class="muted">No devices reported.</small></p>
+          <p><small class="text-light">No devices reported.</small></p>
         {% endif %}
       </section>
     {% endif %}
@@ -216,7 +216,7 @@
       <header>
         <h3>Force-promote in room</h3>
         <p><small x-text="roomTarget"></small></p>
-        <p><small class="muted">Grants {{ mxid }} admin-level power in this room (auth checks still apply).</small></p>
+        <p><small class="text-light">Grants {{ mxid }} admin-level power in this room (auth checks still apply).</small></p>
       </header>
       <footer>
         <button type="button" class="outline" commandfor="dlg-promote" command="close">Cancel</button>
@@ -230,7 +230,7 @@
       <header>
         <h3>Force-demote in room</h3>
         <p><small x-text="roomTarget"></small></p>
-        <p><small class="muted">Drops {{ mxid }}'s power level in this room back to the default.</small></p>
+        <p><small class="text-light">Drops {{ mxid }}'s power level in this room back to the default.</small></p>
       </header>
       <footer>
         <button type="button" class="outline" commandfor="dlg-demote" command="close">Cancel</button>

@@ -12,7 +12,7 @@
       {% if detail %}
         <p class="mt-2 flex gap-2 items-center flex-wrap">
           {% if detail.row.sender_localpart %}<span class="badge outline">sender: {{ detail.row.sender_localpart }}</span>{% endif %}
-          {% if detail.row.url %}<small class="muted">{{ detail.row.url }}</small>{% endif %}
+          {% if detail.row.url %}<small class="text-light">{{ detail.row.url }}</small>{% endif %}
         </p>
       {% endif %}
     </header>
@@ -21,7 +21,7 @@
       {% include "partials/flash.html" %}
     </div>
 
-    {% if error %}<div role="alert" class="alert danger mb-6">{{ error }}</div>{% endif %}
+    {% if error %}<div role="alert" data-variant="danger" class="mb-6">{{ error }}</div>{% endif %}
 
     {% if detail %}
       <article class="card mb-6">
@@ -41,7 +41,7 @@
             <tbody>
               {% for f in detail.fields %}
                 <tr>
-                  <td style="width:220px"><small class="muted">{{ f.0 }}</small></td>
+                  <td style="width:220px"><small class="text-light">{{ f.0 }}</small></td>
                   <td><code>{{ f.1 }}</code></td>
                 </tr>
               {% endfor %}

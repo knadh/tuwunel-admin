@@ -9,7 +9,7 @@
 [data-sidebar-layout] > main > article {
   max-width: 80rem;
   margin-inline: auto;
-  padding: var(--space-6) var(--space-6);
+  padding: var(--space-6);
 }
 
 body:not([data-sidebar-layout]) > main {
@@ -43,33 +43,12 @@ nav[data-topnav] {
   background: var(--gradient);
 }
 
-main pre {
-  background: var(--muted);
-  padding: var(--space-3);
-  border-radius: var(--radius-medium);
-  overflow-x: auto;
-}
-
-.muted { color: var(--muted-foreground); }
 .badge { text-transform: uppercase; }
-
-.alert pre {
-  margin: 0;
-  background: transparent;
-  padding: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 .console-log { margin-top: var(--space-16); }
 
-/* Flex/alignment utilities (oat covers .flex + gap; these fill the gaps we reach for repeatedly). */
+/* Utilities oat doesn't cover. */
 .m-0 { margin: 0; }
-.text-right { text-align: right; }
 .flex-wrap { flex-wrap: wrap; }
-.flex-between { justify-content: space-between; }
-.flex-end { justify-content: flex-end; }
-.items-center { align-items: center; }
 .items-end { align-items: flex-end; }
 .inline-form { display: inline; }
 
@@ -89,10 +68,10 @@ main pre {
 .sticky-actions {
   position: sticky;
   bottom: 0;
-  background: var(--bg);
+  background: var(--background);
   border-top: 1px solid var(--border);
-  padding: 1rem;
-  margin-top: 1rem;
+  padding: var(--space-4);
+  margin-top: var(--space-4);
 }
 
 /* Dashboard stats. */
@@ -106,7 +85,6 @@ main pre {
   display: flex;
   flex-direction: column;
   padding: var(--space-5);
-  margin: 0;
   background-image: var(--gradient);
 
   & .kv { margin: 0; padding: 0; }
@@ -118,8 +96,6 @@ main pre {
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
-  padding: 0;
-  border: 0;
 
   & small:first-child {
     text-transform: uppercase;
@@ -181,52 +157,18 @@ main pre {
   & code { word-break: break-word; }
 }
 
-.config-section-head {
-  font-family: var(--font-mono);
-  font-size: var(--text-7);
-  color: var(--muted-foreground);
-  margin: var(--space-5) 0 var(--space-2);
-
-  &:first-of-type { margin-top: 0; }
-}
-
 .two-col {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
   gap: var(--space-4);
 }
 
-.modules-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: var(--space-3);
-}
-
-.module-tile {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-medium);
-  background-color: var(--card);
-  color: var(--card-foreground);
-  text-decoration: none;
-  transition: border-color var(--transition-fast), background-color var(--transition-fast);
-
-  &:hover {
-    border-color: var(--ring);
-    background-color: var(--accent);
-  }
-}
-
 .login-form {
-    fieldset.group select {
-      max-width: 40%;
-      flex: 0 0 40%;
-    }
-    .homeserver label {
-      margin-bottom: var(--space-1);
-    }
+  fieldset.group select {
+    max-width: 40%;
+    flex: 0 0 40%;
+  }
+  .homeserver label {
+    margin-bottom: var(--space-1);
+  }
 }

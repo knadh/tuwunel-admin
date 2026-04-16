@@ -15,7 +15,7 @@
     <article class="card mb-6">
       <header>
         <h3>Caches &amp; database</h3>
-        <p><small class="muted">Maintenance operations. Backups are RocksDB-only.</small></p>
+        <p><small class="text-light">Maintenance operations. Backups are RocksDB-only.</small></p>
       </header>
       <div class="flex gap-2 flex-wrap">
         <form method="post" action="/server/clear-caches"
@@ -32,7 +32,7 @@
     <article class="card mb-6">
       <header>
         <h3>Lifecycle <span class="badge" data-variant="danger">destructive</span></h3>
-        <p><small class="muted">Affects every connected client on this server.</small></p>
+        <p><small class="text-light">Affects every connected client on this server.</small></p>
         <br />
       </header>
       <div class="flex gap-2 flex-wrap">
@@ -57,7 +57,7 @@
     <article class="card mb-6">
       <header>
         <h3>Admin notice</h3>
-        <p><small class="muted">Broadcast a message into the admin room.</small></p>
+        <p><small class="text-light">Broadcast a message into the admin room.</small></p>
       </header>
       <form method="post" action="/server/admin-notice">
         <label data-field>
@@ -73,7 +73,7 @@
     <article class="card mb-6">
       <header>
         <h3>Federation diagnostics</h3>
-        <p><small class="muted">Quick reachability checks against a remote homeserver.</small></p>
+        <p><small class="text-light">Quick reachability checks against a remote homeserver.</small></p>
       </header>
       <div class="two-col">
         <form method="post" action="/server/federation-ping">
@@ -100,7 +100,7 @@
     <article class="card mb-6">
       <header>
         <h3>Raw admin command <span class="badge" data-variant="danger">expert</span></h3>
-        <p><small class="muted">Send any admin command verbatim to the admin room. The reply appears in the console log below. Useful for <code>debug …</code> / <code>query …</code> subcommands not exposed above.</small></p>
+        <p><small class="text-light">Send any admin command verbatim to the admin room. The reply appears in the console log below. Useful for <code>debug …</code> / <code>query …</code> subcommands not exposed above.</small></p>
       </header>
       <form method="post" action="/server/raw#console-log">
         <label data-field>

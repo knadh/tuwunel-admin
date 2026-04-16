@@ -26,7 +26,7 @@
               <input type="search" x-model.debounce.150ms="q" placeholder="Search room id, name or alias…" autocomplete="off">
             </label>
           </div>
-          <div class="col-8 flex gap-4 flex-end flex-wrap">
+          <div class="col-8 flex gap-4 justify-end flex-wrap">
             <label data-field class="m-0">
               <select x-model="kind">
                 <option value="room">Rooms</option>
@@ -70,9 +70,9 @@
             <tr>
               <th style="width:32px"><input type="checkbox" @change="toggleAll($event.target.checked)" :checked="allVisibleSelected()"></th>
               <th>Name</th>
-              <th class="text-right">Members</th>
+              <th class="align-right">Members</th>
               <th>Status</th>
-              <th class="text-right">Actions</th>
+              <th class="align-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -82,10 +82,10 @@
                   data-published="{{ r.published }}">
                 <td><input type="checkbox" :value="'{{ r.room_id }}'" x-model="selected"></td>
                 <td>
-                  <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="muted">(unnamed)</em>{% endif %}</a>
-                  <br><small class="muted">{{ r.room_id }}</small>
+                  <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="text-light">(unnamed)</em>{% endif %}</a>
+                  <br><small class="text-light">{{ r.room_id }}</small>
                 </td>
-                <td class="text-right">{{ r.members }}</td>
+                <td class="align-right">{{ r.members }}</td>
                 <td>
                   <div class="flex gap-2 flex-wrap">
                     {% if r.banned %}
@@ -98,7 +98,7 @@
                   </div>
                 </td>
                 <td>
-                  <div class="flex gap-2 flex-end flex-wrap">
+                  <div class="flex gap-2 justify-end flex-wrap">
                     {% if r.banned %}
                       <button popovertarget="pop-unban" class="outline" @click="target='{{ r.room_id }}'; targetName='{{ r.name }}'">Unban</button>
                     {% else %}
@@ -112,8 +112,8 @@
           </tbody>
         </table>
 
-        <nav class="flex gap-4 mt-4 mb-6 flex-between items-center">
-          <small class="muted">Page {{ page }}</small>
+        <nav class="flex gap-4 mt-4 mb-6 justify-between items-center">
+          <small class="text-light">Page {{ page }}</small>
           <div class="flex gap-2">
             {% if page > 1 %}
               <a class="outline" role="button" href="?page={{ page - 1 }}{% if exclude_banned %}&exclude_banned=on{% endif %}{% if exclude_disabled %}&exclude_disabled=on{% endif %}">← Prev</a>
@@ -129,7 +129,7 @@
       <article class="card mt-6">
         <header>
           <h3>Prune empty rooms <span class="badge" data-variant="danger">destructive</span></h3>
-          <p><small class="muted">Delete every room with zero joined members. Force includes rooms with remote members only.</small></p>
+          <p><small class="text-light">Delete every room with zero joined members. Force includes rooms with remote members only.</small></p>
         </header>
         <form method="post" action="/rooms/prune-empty"
               onsubmit="return confirm('Prune empty rooms? This cannot be undone.')">
@@ -142,7 +142,7 @@
         </form>
       </article>
     {% else %}
-      <section><p class="muted">No rooms found.</p></section>
+      <section><p class="text-light">No rooms found.</p></section>
     {% endif %}
 
     {% if log %}
@@ -161,7 +161,7 @@
     <header>
       <h4>Ban this room?</h4>
       <p x-show="targetName"><span x-text="targetName"></span></p>
-      <p><small class="muted" x-text="target"></small></p>
+      <p><small class="text-light" x-text="target"></small></p>
     </header>
     <footer class="hstack">
       <button type="button" class="outline small" popovertarget="pop-ban">Cancel</button>
@@ -175,7 +175,7 @@
     <header>
       <h4>Unban this room?</h4>
       <p x-show="targetName"><span x-text="targetName"></span></p>
-      <p><small class="muted" x-text="target"></small></p>
+      <p><small class="text-light" x-text="target"></small></p>
     </header>
     <footer class="hstack">
       <button type="button" class="outline small" popovertarget="pop-unban">Cancel</button>
@@ -190,7 +190,7 @@
       <header>
         <h3>Delete room</h3>
         <p x-show="targetName"><span x-text="targetName"></span></p>
-        <p><small class="muted" x-text="target"></small></p>
+        <p><small class="text-light" x-text="target"></small></p>
       </header>
       <section>
         <p><small>This removes the room from the server. Cannot be undone.</small></p>

@@ -8,7 +8,7 @@
   <article>
     <header class="mb-4">
       <h1 class="m-0">Config</h1>
-      <p class="mt-2 m-0"><small class="muted">Boot-time config as loaded. Edit the on-disk config and reload to change values.</small></p>
+      <p class="mt-2 m-0"><small class="text-light">Boot-time config as loaded. Edit the on-disk config and reload to change values.</small></p>
     </header>
 
     {% include "partials/flash.html" %}
@@ -20,7 +20,7 @@
       <form method="post" action="/server/reload-config"
             onsubmit="return confirm('Reload server config? Non-reloadable fields will reject the reload and keep the current config active.')">
         <label data-field class="m-0" style="flex:1 1 240px">
-          <small class="muted">Config TOML path (optional)</small>
+          <small class="text-light">Config TOML path (optional)</small>
           <input type="text" name="path" placeholder="" autocomplete="off">
           <small data-hint>Reload config file without restarting the server</small>
         </label>

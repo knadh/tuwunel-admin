@@ -12,14 +12,14 @@
         <div class="col-6">
           {% if detail and detail.row.name %}
             <h1 class="m-0">{{ detail.row.name }}</h1>
-            <p class="mt-2 m-0"><small class="muted">{{ room_id }}</small></p>
+            <p class="mt-2 m-0"><small class="text-light">{{ room_id }}</small></p>
           {% else %}
             <h1 class="m-0">{{ room_id }}</h1>
           {% endif %}
         </div>
         <div class="col-6 align-right">
           {% if detail and detail.topic %}
-            <small class="muted">{{ detail.topic }}</small>
+            <small class="text-light">{{ detail.topic }}</small>
           {% endif %}
         </div>
       </div>
@@ -32,7 +32,7 @@
           {% endif %}
           {% if detail.row.federated %}<span class="badge outline">federated</span>{% endif %}
           {% if detail.row.published %}<span class="badge outline">published</span>{% endif %}
-          {% if detail.row.members %}<small class="muted">{{ detail.row.members }} members</small>{% endif %}
+          {% if detail.row.members %}<small class="text-light">{{ detail.row.members }} members</small>{% endif %}
         </p>
       {% endif %}
     </header>
@@ -80,7 +80,7 @@
           <div class="col-6">
             <h2 class="m-0">Aliases {% if detail.aliases %}({{ detail.aliases | length }}){% endif %}</h2>
           </div>
-          <div class="col-6 flex flex-end items-center">
+          <div class="col-6 flex justify-end items-center">
             <button class="outline" commandfor="dlg-add-alias" command="show-modal">＋ Add alias</button>
           </div>
         </div>
@@ -89,14 +89,14 @@
             <thead>
               <tr>
                 <th>Alias</th>
-                <th class="text-right">Actions</th>
+                <th class="align-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {% for a in detail.aliases %}
                 <tr>
                   <td>{{ a }}</td>
-                  <td class="text-right">
+                  <td class="align-right">
                     <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases/remove"
                           onsubmit="return confirm('Remove alias {{ a }}?')">
                       <input type="hidden" name="localpart" value="{{ a | split(pat=':') | first | trim_start_matches(pat='#') }}">
@@ -108,7 +108,7 @@
             </tbody>
           </table>
         {% else %}
-          <p><small class="muted">No aliases point at this room.</small></p>
+          <p><small class="text-light">No aliases point at this room.</small></p>
         {% endif %}
       </section>
 
@@ -123,7 +123,7 @@
                 <tr>
                   <td>
                     <a href="/users/{{ m | urlencode }}">{{ m | split(pat=":") | first | trim_start_matches(pat="@") }}</a>
-                    <br><small class="muted">{{ m }}</small>
+                    <br><small class="text-light">{{ m }}</small>
                   </td>
                 </tr>
               {% endfor %}
@@ -172,7 +172,7 @@
     <form method="post" action="/rooms/{{ room_id | urlencode }}/aliases">
       <header>
         <h3>Add alias</h3>
-        <p><small class="muted">Name (without <strong>#</strong> and server).</small></p>
+        <p><small class="text-light">Name (without <strong>#</strong> and server).</small></p>
       </header>
       <section>
         <label data-field>
@@ -194,7 +194,7 @@
     <form method="post" action="/rooms/{{ room_id | urlencode }}/force-join-users" x-data="{ allUsers: false }">
       <header>
         <h3>Force-join local users</h3>
-        <p><small class="muted">Force a list of local users (or all local users) into this room. Bypasses normal join rules.</small></p>
+        <p><small class="text-light">Force a list of local users (or all local users) into this room. Bypasses normal join rules.</small></p>
       </header>
       <section>
         <label data-field>
@@ -219,7 +219,7 @@
     <form method="post" action="/rooms/{{ room_id | urlencode }}/delete">
       <header>
         <h3>Delete room</h3>
-        <p><small class="muted">{{ room_id }}</small></p>
+        <p><small class="text-light">{{ room_id }}</small></p>
       </header>
       <section>
         <p><small>This removes the room from the server. Cannot be undone.</small></p>

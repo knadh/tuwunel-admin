@@ -7,7 +7,7 @@
   {% for entry in log %}
     <div class="mt-2">
       <p>
-        <small class="muted">$ !admin {{ entry.cmd }}</small>
+        <small class="text-light">$ !admin {{ entry.cmd }}</small>
         {% if entry.is_error %}<small><span class="badge" data-variant="danger">error</span></small>{% endif %}
       </p>
       <pre{% if entry.is_error %} data-variant="danger"{% endif %}>{{ entry.body }}</pre>
