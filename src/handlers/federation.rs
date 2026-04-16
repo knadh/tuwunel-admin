@@ -9,6 +9,7 @@ use tower_sessions::Session;
 
 use super::{
     base_ctx, insert_flash, install_log, markdown_to_html, redirect_with_err, render, take_flash,
+    validate_line,
 };
 use crate::{federation, matrix, Ctx};
 
@@ -51,6 +52,14 @@ pub async fn fetch_well_known(
     if server.is_empty() {
         return redirect_with_err(&session, "Server name is required.", "/federation").await;
     }
+    if !validate_line(server) {
+        return redirect_with_err(
+            &session,
+            "Server name cannot contain line breaks.",
+            "/federation",
+        )
+        .await;
+    }
     let cmd = format!("federation fetch-support-well-known {server}");
     match st.matrix.run_admin(&sess, &cmd).await {
         Ok(r) => {
@@ -73,6 +82,14 @@ pub async fn remote_user_in_rooms(
     let uid = f.user_id.trim();
     if uid.is_empty() {
         return redirect_with_err(&session, "User ID is required.", "/federation").await;
+    }
+    if !validate_line(uid) {
+        return redirect_with_err(
+            &session,
+            "User ID cannot contain line breaks.",
+            "/federation",
+        )
+        .await;
     }
     let cmd = format!("federation remote-user-in-rooms {uid}");
     match st.matrix.run_admin(&sess, &cmd).await {

@@ -10,7 +10,8 @@ use tower_sessions::Session;
 
 use super::{
     base_ctx, checkbox, insert_flash, install_log, markdown_to_html, redirect, redirect_with_err,
-    render, run_and_redirect, set_flash, split_lines, take_flash, with_fenced_payload,
+    render, run_and_redirect, set_flash, split_lines, take_flash, validate_line,
+    with_fenced_payload,
 };
 use crate::{matrix, users, Ctx};
 
@@ -85,8 +86,14 @@ pub async fn create(
     if username.is_empty() {
         return redirect_with_err(&session, "Username is required.", "/users").await;
     }
+    if !validate_line(username) {
+        return redirect_with_err(&session, "Username cannot contain line breaks.", "/users").await;
+    }
     let generate = checkbox(f.generate.as_deref());
     let password = f.password.as_deref().unwrap_or("").trim();
+    if !validate_line(password) {
+        return redirect_with_err(&session, "Password cannot contain line breaks.", "/users").await;
+    }
     let autogen = generate || password.is_empty();
     let cmd = if autogen {
         format!("users create-user {username}")
@@ -153,6 +160,9 @@ pub async fn reset_password(
     let back = format!("/users/{mxid}");
     if f.password.is_empty() {
         return redirect_with_err(&session, "Password is required.", &back).await;
+    }
+    if !validate_line(&f.password) {
+        return redirect_with_err(&session, "Password cannot contain line breaks.", &back).await;
     }
     let cmd = format!("users reset-password {mxid} {}", f.password);
     run_and_redirect(
@@ -250,6 +260,9 @@ pub async fn force_join(
     if room.is_empty() {
         return redirect_with_err(&session, "Room is required.", &back).await;
     }
+    if !validate_line(room) {
+        return redirect_with_err(&session, "Room cannot contain line breaks.", &back).await;
+    }
     let cmd = format!("users force-join-room {mxid} {room}");
     run_and_redirect(
         &st,
@@ -274,6 +287,9 @@ pub async fn force_leave(
     if room.is_empty() {
         return redirect_with_err(&session, "Room ID is required.", &back).await;
     }
+    if !validate_line(room) {
+        return redirect_with_err(&session, "Room ID cannot contain line breaks.", &back).await;
+    }
     let cmd = format!("users force-leave-room {mxid} {room}");
     run_and_redirect(
         &st,
@@ -297,6 +313,9 @@ pub async fn redact_event(
     let evt = f.event_id.trim();
     if evt.is_empty() {
         return redirect_with_err(&session, "Event ID is required.", &back).await;
+    }
+    if !validate_line(evt) {
+        return redirect_with_err(&session, "Event ID cannot contain line breaks.", &back).await;
     }
     let cmd = format!("users redact-event {evt}");
     run_and_redirect(
@@ -378,6 +397,9 @@ pub async fn room_tag(
     let tag = f.tag.trim();
     if tag.is_empty() {
         return redirect_with_err(&session, "Tag is required.", &back).await;
+    }
+    if !validate_line(tag) {
+        return redirect_with_err(&session, "Tag cannot contain line breaks.", &back).await;
     }
     let (cmd, msg) = if f.verb == "delete" {
         (

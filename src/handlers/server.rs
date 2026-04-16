@@ -9,7 +9,7 @@ use tower_sessions::Session;
 
 use super::{
     base_ctx, checkbox, insert_flash, install_log, redirect_with_err, render, run_and_redirect,
-    take_flash,
+    take_flash, validate_line,
 };
 use crate::{matrix, server, Ctx};
 
@@ -114,6 +114,10 @@ pub async fn federation_ping(
     if server.is_empty() {
         return redirect_with_err(&session, "Server name is required.", "/server").await;
     }
+    if !validate_line(server) {
+        return redirect_with_err(&session, "Server name cannot contain line breaks.", "/server")
+            .await;
+    }
     let cmd = format!("debug ping {server}");
     run_and_redirect(
         &st,
@@ -136,6 +140,10 @@ pub async fn federation_resolve(
     if server.is_empty() {
         return redirect_with_err(&session, "Server name is required.", "/server").await;
     }
+    if !validate_line(server) {
+        return redirect_with_err(&session, "Server name cannot contain line breaks.", "/server")
+            .await;
+    }
     let cmd = format!("debug resolve-true-destination {server}");
     run_and_redirect(
         &st,
@@ -154,7 +162,14 @@ pub async fn reload_config(
     Extension(sess): Extension<matrix::Session>,
     Form(f): Form<ReloadConfigForm>,
 ) -> Response {
-    let cmd = match f.path.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    let path = f.path.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    if let Some(p) = path {
+        if !validate_line(p) {
+            return redirect_with_err(&session, "Path cannot contain line breaks.", "/server")
+                .await;
+        }
+    }
+    let cmd = match path {
         Some(p) => format!("server reload-config {p}"),
         None => "server reload-config".to_string(),
     };

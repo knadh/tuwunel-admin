@@ -105,6 +105,12 @@ pub(super) fn split_lines(text: &str) -> Vec<&str> {
         .collect()
 }
 
+// Reject CR/LF in single-line fields so they can't inject extra tokens into the
+// admin-bot command we build with `format!`.
+pub(super) fn validate_line(s: &str) -> bool {
+    !s.contains('\n') && !s.contains('\r')
+}
+
 pub(super) fn redirect(to: &str) -> Response {
     Redirect::to(to).into_response()
 }

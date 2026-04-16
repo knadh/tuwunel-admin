@@ -9,7 +9,7 @@ use tower_sessions::Session;
 
 use super::{
     base_ctx, checkbox, cmd_flag, insert_flash, install_log, redirect_with_err, render,
-    run_and_redirect, split_lines, take_flash, with_fenced_payload,
+    run_and_redirect, split_lines, take_flash, validate_line, with_fenced_payload,
 };
 use crate::{matrix, media, Ctx};
 
@@ -95,6 +95,9 @@ pub async fn delete(
     if mxc.is_empty() {
         return redirect_with_err(&session, "MXC URL is required.", "/media").await;
     }
+    if !validate_line(mxc) {
+        return redirect_with_err(&session, "MXC URL cannot contain line breaks.", "/media").await;
+    }
     let cmd = format!("media delete --mxc {mxc}");
     run_and_redirect(
         &st,
@@ -116,6 +119,9 @@ pub async fn delete_by_event(
     let evt = f.event_id.trim();
     if evt.is_empty() {
         return redirect_with_err(&session, "Event ID is required.", "/media").await;
+    }
+    if !validate_line(evt) {
+        return redirect_with_err(&session, "Event ID cannot contain line breaks.", "/media").await;
     }
     let cmd = format!("media delete-by-event --event-id {evt}");
     run_and_redirect(
@@ -162,6 +168,9 @@ pub async fn delete_range(
     if duration.is_empty() {
         return redirect_with_err(&session, "Duration is required.", "/media").await;
     }
+    if !validate_line(duration) {
+        return redirect_with_err(&session, "Duration cannot contain line breaks.", "/media").await;
+    }
     let newer = f.direction == "newer";
     let mut cmd = String::from("media delete-range");
     cmd.push_str(if newer {
@@ -192,6 +201,9 @@ pub async fn delete_from_user(
     if user.is_empty() {
         return redirect_with_err(&session, "User ID is required.", "/media").await;
     }
+    if !validate_line(user) {
+        return redirect_with_err(&session, "User ID cannot contain line breaks.", "/media").await;
+    }
     let cmd = format!("media delete-all-from-user {user}");
     run_and_redirect(
         &st,
@@ -213,6 +225,10 @@ pub async fn delete_from_server(
     let server = f.server.trim();
     if server.is_empty() {
         return redirect_with_err(&session, "Server name is required.", "/media").await;
+    }
+    if !validate_line(server) {
+        return redirect_with_err(&session, "Server name cannot contain line breaks.", "/media")
+            .await;
     }
     let mut cmd = String::from("media delete-all-from-server");
     if checkbox(f.include_local.as_deref()) {
@@ -240,6 +256,9 @@ pub async fn fetch_remote(
     let mxc = f.mxc.trim();
     if mxc.is_empty() {
         return redirect_with_err(&session, "MXC URL is required.", "/media").await;
+    }
+    if !validate_line(mxc) {
+        return redirect_with_err(&session, "MXC URL cannot contain line breaks.", "/media").await;
     }
     let thumb = checkbox(f.thumbnail.as_deref());
     let mut cmd = String::from(if thumb {

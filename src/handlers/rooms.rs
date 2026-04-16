@@ -9,7 +9,7 @@ use tower_sessions::Session;
 
 use super::{
     base_ctx, checkbox, insert_flash, install_log, markdown_to_html, redirect, redirect_with_err,
-    render, run_and_redirect, split_lines, take_flash, with_fenced_payload,
+    render, run_and_redirect, split_lines, take_flash, validate_line, with_fenced_payload,
 };
 use crate::{matrix, parse, rooms, Ctx};
 
@@ -312,6 +312,9 @@ pub async fn alias_add(
     if lp.is_empty() {
         return redirect_with_err(&session, "Alias localpart is required.", &back).await;
     }
+    if !validate_line(lp) {
+        return redirect_with_err(&session, "Alias cannot contain line breaks.", &back).await;
+    }
     let cmd = if checkbox(f.force.as_deref()) {
         format!("rooms alias set --force {room_id} {lp}")
     } else {
@@ -344,6 +347,9 @@ pub async fn alias_remove(
     let lp = alias_localpart(&f.localpart);
     if lp.is_empty() {
         return redirect_with_err(&session, "Alias localpart is required.", &back).await;
+    }
+    if !validate_line(lp) {
+        return redirect_with_err(&session, "Alias cannot contain line breaks.", &back).await;
     }
     let cmd = format!("rooms alias remove {lp}");
     run_on_room(
