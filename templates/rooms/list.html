@@ -251,11 +251,10 @@ function roomsPage() {
       this.rows.forEach(r => {
         const rid = r.dataset.roomId.toLowerCase();
         const name = (r.dataset.name || '').toLowerCase();
-        const members = +r.dataset.members || 0;
         const banned = r.dataset.banned === 'true';
         const federated = r.dataset.federated === 'true';
         const published = r.dataset.published === 'true';
-        const isDm = members <= 2;
+        const isDm = name === '';
         const statusOk = st === 'all'
           || (st === 'banned' && banned)
           || (st === 'active' && !banned);
