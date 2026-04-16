@@ -3,6 +3,7 @@ mod commands;
 mod config;
 mod federation;
 mod handlers;
+mod log;
 mod matrix;
 mod media;
 mod parse;
@@ -11,6 +12,7 @@ mod server;
 mod tokens;
 mod users;
 
+use crate::log::info;
 use anyhow::Result;
 use axum::{
     routing::{get, post},
@@ -21,7 +23,6 @@ use std::sync::Arc;
 use tera::Tera;
 use tower_http::services::ServeDir;
 use tower_sessions::{MemoryStore, SessionManagerLayer};
-use tracing::info;
 
 #[derive(Parser)]
 #[command(name = "tuwunel-admin")]
@@ -50,13 +51,6 @@ pub struct Ctx {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "tuwunel_admin=info,tower_http=info".into()),
-        )
-        .init();
-
     let cli = Cli::parse();
 
     if let Some(cmd) = cli.command {
@@ -240,7 +234,6 @@ async fn main() -> Result<()> {
         .route("/logout", post(handlers::logout))
         .nest_service("/static", ServeDir::new("static"))
         .layer(sess)
-        .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
     info!("listening on {bind}");

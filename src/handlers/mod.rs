@@ -320,7 +320,7 @@ pub(super) fn render(st: &Ctx, template: &str, ctx: &Context) -> Response {
                 msg.push_str(&format!("\n  caused by: {s}"));
                 src = s.source();
             }
-            tracing::error!("{msg}");
+            crate::log::error!("{msg}");
             (StatusCode::INTERNAL_SERVER_ERROR, msg).into_response()
         }
     }
@@ -379,12 +379,16 @@ pub(super) async fn run_and_redirect(
 }
 
 pub(super) fn markdown_to_html(md: &str) -> String {
-    use pulldown_cmark::{html, Options, Parser};
-    let mut opts = Options::empty();
-    opts.insert(Options::ENABLE_TABLES);
-    opts.insert(Options::ENABLE_STRIKETHROUGH);
-    let parser = Parser::new_ext(md, opts);
-    let mut out = String::with_capacity(md.len() * 2);
-    html::push_html(&mut out, parser);
+    let mut out = String::with_capacity(md.len() + 16);
+    out.push_str("<pre>");
+    for c in md.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+    out.push_str("</pre>");
     out
 }

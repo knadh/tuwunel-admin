@@ -3,11 +3,22 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
-use std::time::Duration;
-use tracing::{debug, info};
-use uuid::Uuid;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::log::{debug, info};
 use crate::parse;
+
+static TXN_SEQ: AtomicU64 = AtomicU64::new(0);
+
+fn new_txn_id() -> String {
+    let n = TXN_SEQ.fetch_add(1, Ordering::Relaxed);
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("tuwadm-{t}-{n}")
+}
 
 // How long to wait for the admin bot's reply before giving up.
 const REPLY_DEADLINE: Duration = Duration::from_secs(10);
@@ -175,7 +186,7 @@ impl Matrix {
         room_id: &str,
         body: &str,
     ) -> Result<String> {
-        let txn = Uuid::new_v4();
+        let txn = new_txn_id();
         let rid = urlencoding::encode(room_id);
         let res: Value = self
             .http
@@ -262,20 +273,20 @@ impl Matrix {
         };
         let cmd = wire.as_str();
         let (hs, tok, room) = (&sess.homeserver, &sess.access_token, &sess.admin_room_id);
-        info!(room = %room, cmd = %cmd, "sending admin command");
+        info!("sending admin command: room={room} cmd={cmd}");
 
         // Snapshot /sync so we only see events after our message.
         let (since, _) = self
             .sync_room(hs, tok, room, None, 0)
             .await
             .context("initial sync snapshot")?;
-        debug!(since, "got sync snapshot token");
+        debug!("got sync snapshot token: since={since}");
 
         let our_event = self
             .send_text(hs, tok, room, cmd)
             .await
             .context("posting command to admin room")?;
-        info!(event_id = %our_event, "command posted");
+        info!("command posted: event_id={our_event}");
 
         // Long-poll until we see a non-self m.room.message in the room.
         let deadline = std::time::Instant::now() + REPLY_DEADLINE;
@@ -296,11 +307,11 @@ impl Matrix {
                 .context("long-polling sync")?;
             cursor = next;
 
-            debug!(count = events.len(), "sync returned events");
+            debug!("sync returned events: count={}", events.len());
             for evt in &events {
                 let ty = evt["type"].as_str().unwrap_or("");
                 let sender = evt["sender"].as_str().unwrap_or("");
-                debug!(ty, sender, "event");
+                debug!("event: ty={ty} sender={sender}");
                 if ty != "m.room.message" || sender == sess.user_id {
                     continue;
                 }
