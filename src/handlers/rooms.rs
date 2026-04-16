@@ -9,17 +9,14 @@ use tower_sessions::Session;
 
 use super::{
     base_ctx, checkbox, insert_flash, install_log, markdown_to_html, redirect, redirect_with_err,
-    render, run_and_flash, split_lines, take_flash, with_fenced_payload,
+    render, run_and_redirect, split_lines, take_flash, with_fenced_payload,
 };
 use crate::{matrix, parse, rooms, Ctx};
 
 #[derive(Deserialize, Default)]
 pub struct ListQuery {
-    #[serde(default)]
     pub page: Option<u32>,
-    #[serde(default)]
     pub exclude_banned: Option<String>,
-    #[serde(default)]
     pub exclude_disabled: Option<String>,
 }
 
@@ -31,13 +28,11 @@ pub struct AliasLookupQuery {
 #[derive(Deserialize)]
 pub struct AliasForm {
     pub localpart: String,
-    #[serde(default)]
     pub force: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct PruneForm {
-    #[serde(default)]
     pub force: Option<String>,
 }
 
@@ -48,12 +43,16 @@ pub struct BanListForm {
 
 #[derive(Deserialize)]
 pub struct ForceJoinUsersForm {
-    #[serde(default)]
     pub mxids: Option<String>,
-    #[serde(default)]
     pub all: Option<String>,
-    #[serde(default)]
     pub confirm: Option<String>,
+}
+
+// Normalize a user-submitted alias down to its localpart: strip whitespace,
+// a leading `#`, and anything from the `:server` suffix onward.
+fn alias_localpart(raw: &str) -> &str {
+    let s = raw.trim().trim_start_matches('#');
+    s.split(':').next().unwrap_or(s)
 }
 
 pub async fn list(
@@ -91,8 +90,7 @@ pub async fn find_by_alias(
     Extension(sess): Extension<matrix::Session>,
     Query(q): Query<AliasLookupQuery>,
 ) -> Response {
-    let alias = q.alias.trim().trim_start_matches('#');
-    let localpart = alias.split(':').next().unwrap_or(alias);
+    let localpart = alias_localpart(&q.alias);
     if localpart.is_empty() {
         return redirect_with_err(&session, "Alias is required.", "/rooms").await;
     }
@@ -124,8 +122,7 @@ pub async fn prune_empty(
     } else {
         "rooms prune-empty"
     };
-    run_and_flash(&st, &sess, &session, cmd, "Pruned empty rooms").await;
-    redirect("/rooms")
+    run_and_redirect(&st, &sess, &session, cmd, "Pruned empty rooms", "/rooms").await
 }
 
 pub async fn ban_list(
@@ -140,8 +137,15 @@ pub async fn ban_list(
     }
     let n = ids.len();
     let cmd = with_fenced_payload("rooms moderation ban-list-of-rooms", &ids.join("\n"));
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Banned {n} room(s)")).await;
-    redirect("/rooms")
+    run_and_redirect(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Banned {n} room(s)"),
+        "/rooms",
+    )
+    .await
 }
 
 pub async fn detail(
@@ -168,8 +172,7 @@ pub async fn detail(
     render(&st, "rooms/detail.html", &ctx)
 }
 
-// Shared helper for the many "run one admin command, flash, redirect to room
-// detail" handlers below — ban/unban, federation enable/disable, etc.
+// Run `cmd`, flash, and redirect to the room detail page.
 async fn run_on_room(
     st: &Ctx,
     sess: &matrix::Session,
@@ -178,8 +181,15 @@ async fn run_on_room(
     cmd: &str,
     success: &str,
 ) -> Response {
-    run_and_flash(st, sess, session, cmd, success).await;
-    redirect(&format!("/rooms/{room_id}"))
+    run_and_redirect(
+        st,
+        sess,
+        session,
+        cmd,
+        success,
+        &format!("/rooms/{room_id}"),
+    )
+    .await
 }
 
 pub async fn ban(
@@ -298,8 +308,7 @@ pub async fn alias_add(
     Form(f): Form<AliasForm>,
 ) -> Response {
     let back = format!("/rooms/{room_id}");
-    let lp = f.localpart.trim().trim_start_matches('#');
-    let lp = lp.split(':').next().unwrap_or(lp);
+    let lp = alias_localpart(&f.localpart);
     if lp.is_empty() {
         return redirect_with_err(&session, "Alias localpart is required.", &back).await;
     }
@@ -332,8 +341,7 @@ pub async fn alias_remove(
     Form(f): Form<AliasRemoveForm>,
 ) -> Response {
     let back = format!("/rooms/{room_id}");
-    let lp = f.localpart.trim().trim_start_matches('#');
-    let lp = lp.split(':').next().unwrap_or(lp);
+    let lp = alias_localpart(&f.localpart);
     if lp.is_empty() {
         return redirect_with_err(&session, "Alias localpart is required.", &back).await;
     }
@@ -389,7 +397,6 @@ pub async fn force_join_users(
 
 #[derive(Deserialize)]
 pub struct DeleteRoomForm {
-    #[serde(default)]
     pub force: Option<String>,
 }
 
@@ -400,11 +407,18 @@ pub async fn delete(
     Path(room_id): Path<String>,
     Form(f): Form<DeleteRoomForm>,
 ) -> Response {
-    let cmd = if f.force.as_deref().is_some_and(|v| !v.is_empty()) {
+    let cmd = if checkbox(f.force.as_deref()) {
         format!("rooms delete {room_id} --force")
     } else {
         format!("rooms delete {room_id}")
     };
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Deleted {room_id}")).await;
-    redirect("/rooms")
+    run_and_redirect(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Deleted {room_id}"),
+        "/rooms",
+    )
+    .await
 }

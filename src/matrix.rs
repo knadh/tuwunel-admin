@@ -2,24 +2,35 @@ use anyhow::{anyhow, bail, Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::time::Duration;
 use tracing::{debug, info};
 use uuid::Uuid;
 
-// Bot command req-resp timeout.
+use crate::parse;
+
+// How long to wait for the admin bot's reply before giving up.
 const REPLY_DEADLINE: Duration = Duration::from_secs(10);
 
-/// Max timeout for a single long-poll sync iteration in ms.
+// Per-iteration /sync timeout.
 const SYNC_LONGPOLL_MS: u64 = 15_000;
 
-/// A simple Matrix Client-Server API wrapper..
+// Fallback when config leaves `device_id` / `device_display_name` blank.
+const DEFAULT_DEVICE_LABEL: &str = "tuwunel-admin";
+
+/// Trim whitespace and trailing slashes from a homeserver URL.
+pub fn normalize(hs: &str) -> String {
+    hs.trim().trim_end_matches('/').to_string()
+}
+
+/// Minimal Matrix Client-Server API wrapper.
 #[derive(Clone)]
 pub struct Matrix {
     http: Client,
 }
 
-impl Matrix {
-    pub fn new() -> Self {
+impl Default for Matrix {
+    fn default() -> Self {
         Self {
             http: Client::builder()
                 .pool_idle_timeout(Duration::from_secs(60))
@@ -27,15 +38,16 @@ impl Matrix {
                 .expect("reqwest client"),
         }
     }
+}
 
-    /// Normalize a homeserver URL.
-    pub fn normalize(hs: &str) -> String {
-        hs.trim().trim_end_matches('/').to_string()
+impl Matrix {
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// URL-encoded filter JSON scoped to one room, timeline-only.
+    /// /sync filter scoped to one room, timeline-only.
     fn room_filter(room_id: &str) -> String {
-        let filter = json!({
+        json!({
             "room": {
                 "rooms": [room_id],
                 "timeline": { "limit": 20 },
@@ -45,8 +57,8 @@ impl Matrix {
             },
             "presence": { "types": [] },
             "account_data": { "types": [] },
-        });
-        urlencoding::encode(&filter.to_string()).into_owned()
+        })
+        .to_string()
     }
 
     /// POST /_matrix/client/v3/login with m.login.password.
@@ -58,26 +70,23 @@ impl Matrix {
         device_id: &str,
         device_display_name: &str,
     ) -> Result<LoginResult> {
-        let device_id = if device_id.is_empty() {
-            "tuwunel-admin"
-        } else {
-            device_id
-        };
-        let device_display_name = if device_display_name.is_empty() {
-            "tuwunel-admin"
-        } else {
-            device_display_name
-        };
+        fn or_fallback(s: &str) -> &str {
+            if s.is_empty() {
+                DEFAULT_DEVICE_LABEL
+            } else {
+                s
+            }
+        }
         let body = json!({
             "type": "m.login.password",
             "identifier": { "type": "m.id.user", "user": user },
             "password": password,
-            "device_id": device_id,
-            "initial_device_display_name": device_display_name,
+            "device_id": or_fallback(device_id),
+            "initial_device_display_name": or_fallback(device_display_name),
         });
         let res: Value = self
             .http
-            .post(format!("{}/_matrix/client/v3/login", homeserver))
+            .post(format!("{homeserver}/_matrix/client/v3/login"))
             .json(&body)
             .send()
             .await?
@@ -101,14 +110,13 @@ impl Matrix {
 
     pub async fn logout(&self, homeserver: &str, token: &str) -> Result<()> {
         self.http
-            .post(format!("{}/_matrix/client/v3/logout", homeserver))
+            .post(format!("{homeserver}/_matrix/client/v3/logout"))
             .bearer_auth(token)
             .send()
             .await?;
         Ok(())
     }
 
-    /// Resolve a room alias to a room ID.
     pub async fn resolve_alias(
         &self,
         homeserver: &str,
@@ -119,8 +127,7 @@ impl Matrix {
         let res: Value = self
             .http
             .get(format!(
-                "{}/_matrix/client/v3/directory/room/{alias_enc}",
-                homeserver
+                "{homeserver}/_matrix/client/v3/directory/room/{alias_enc}"
             ))
             .bearer_auth(token)
             .send()
@@ -135,19 +142,18 @@ impl Matrix {
             .to_string())
     }
 
-    /// Fetch joined members of a room. Returns mxids.
+    /// Members currently joined to `room_id`.
     pub async fn joined_members(
         &self,
         homeserver: &str,
         token: &str,
         room_id: &str,
-    ) -> Result<Vec<String>> {
+    ) -> Result<HashSet<String>> {
         let rid = urlencoding::encode(room_id);
         let res: Value = self
             .http
             .get(format!(
-                "{}/_matrix/client/v3/rooms/{rid}/joined_members",
-                homeserver
+                "{homeserver}/_matrix/client/v3/rooms/{rid}/joined_members"
             ))
             .bearer_auth(token)
             .send()
@@ -161,7 +167,7 @@ impl Matrix {
             .unwrap_or_default())
     }
 
-    /// Send a message to a room. Returns event_id.
+    /// Returns the event_id of the sent message.
     pub async fn send_text(
         &self,
         homeserver: &str,
@@ -174,8 +180,7 @@ impl Matrix {
         let res: Value = self
             .http
             .put(format!(
-                "{}/_matrix/client/v3/rooms/{rid}/send/m.room.message/{txn}",
-                homeserver
+                "{homeserver}/_matrix/client/v3/rooms/{rid}/send/m.room.message/{txn}"
             ))
             .bearer_auth(token)
             .json(&json!({ "msgtype": "m.text", "body": body }))
@@ -190,7 +195,7 @@ impl Matrix {
             .to_string())
     }
 
-    /// Narrow /sync scoped to one room, returning (next_batch, timeline_events).
+    /// /sync narrowed to one room. Returns (next_batch, timeline_events).
     async fn sync_room(
         &self,
         homeserver: &str,
@@ -200,20 +205,20 @@ impl Matrix {
         timeout_ms: u64,
     ) -> Result<(String, Vec<Value>)> {
         let filter = Self::room_filter(room_id);
-        let mut url = format!(
-            "{}/_matrix/client/v3/sync?filter={filter}&timeout={timeout_ms}",
-            homeserver
-        );
+        let timeout_str = timeout_ms.to_string();
+        let mut params: Vec<(&str, &str)> = vec![
+            ("filter", filter.as_str()),
+            ("timeout", timeout_str.as_str()),
+        ];
         if let Some(s) = since {
-            url.push_str("&since=");
-            url.push_str(&urlencoding::encode(s));
+            params.push(("since", s));
         }
-        let req_timeout = Duration::from_millis(timeout_ms + 10_000);
         let res: Value = self
             .http
-            .get(&url)
+            .get(format!("{homeserver}/_matrix/client/v3/sync"))
+            .query(&params)
             .bearer_auth(token)
-            .timeout(req_timeout)
+            .timeout(Duration::from_millis(timeout_ms + 10_000))
             .send()
             .await
             .context("sync request failed")?
@@ -231,37 +236,43 @@ impl Matrix {
         Ok((next, events))
     }
 
-    /// Run an admin command. Post to the admin room and wait for the bot reply.
+    /// Run an admin command and push its reply into `log` as a LogEntry.
+    pub async fn run_logged(
+        &self,
+        sess: &Session,
+        cmd: &str,
+        log: &mut Vec<LogEntry>,
+    ) -> Result<BotReply> {
+        let reply = self.run_admin(sess, cmd).await?;
+        log.push(LogEntry {
+            cmd: cmd.to_string(),
+            body: reply.body.clone(),
+            is_error: is_error_reply(&reply.body),
+        });
+        Ok(reply)
+    }
+
+    /// Post `cmd` into the admin room and long-poll /sync for the bot's reply.
     pub async fn run_admin(&self, sess: &Session, cmd: &str) -> Result<BotReply> {
-        // Tuwunel admin commands must be prefixed with "!admin ".
+        // Tuwunel requires the "!admin " prefix.
         let wire = if cmd.starts_with("!admin ") {
             cmd.to_string()
         } else {
             format!("!admin {cmd}")
         };
         let cmd = wire.as_str();
-        info!(room = %sess.admin_room_id, cmd = %cmd, "sending admin command");
+        let (hs, tok, room) = (&sess.homeserver, &sess.access_token, &sess.admin_room_id);
+        info!(room = %room, cmd = %cmd, "sending admin command");
 
-        // Snapshot sync position so we only see events after our message.
+        // Snapshot /sync so we only see events after our message.
         let (since, _) = self
-            .sync_room(
-                &sess.homeserver,
-                &sess.access_token,
-                &sess.admin_room_id,
-                None,
-                0,
-            )
+            .sync_room(hs, tok, room, None, 0)
             .await
-            .context("initial sync (snapshot)")?;
+            .context("initial sync snapshot")?;
         debug!(since, "got sync snapshot token");
 
         let our_event = self
-            .send_text(
-                &sess.homeserver,
-                &sess.access_token,
-                &sess.admin_room_id,
-                cmd,
-            )
+            .send_text(hs, tok, room, cmd)
             .await
             .context("posting command to admin room")?;
         info!(event_id = %our_event, "command posted");
@@ -274,21 +285,15 @@ impl Matrix {
                 bail!(
                     "no reply from admin bot in {}s. Verify the admin bot is joined to {} and that `{}` is a valid command.",
                     REPLY_DEADLINE.as_secs(),
-                    sess.admin_room_id,
+                    room,
                     cmd
                 );
             }
 
             let (next, events) = self
-                .sync_room(
-                    &sess.homeserver,
-                    &sess.access_token,
-                    &sess.admin_room_id,
-                    Some(&cursor),
-                    SYNC_LONGPOLL_MS,
-                )
+                .sync_room(hs, tok, room, Some(&cursor), SYNC_LONGPOLL_MS)
                 .await
-                .context("long-poll sync")?;
+                .context("long-polling sync")?;
             cursor = next;
 
             debug!(count = events.len(), "sync returned events");
@@ -299,13 +304,11 @@ impl Matrix {
                 if ty != "m.room.message" || sender == sess.user_id {
                     continue;
                 }
-                // Prefer the plain body. It's markdown-ish and parsable.
-                // formatted_body is the HTML representation and is only useful for raw display.
+                // `body` is markdown-ish and parseable; `formatted_body` is pre-rendered HTML.
                 let body = evt["content"]["body"].as_str().unwrap_or("").to_string();
                 return Ok(BotReply {
                     sender: sender.to_string(),
                     body,
-                    is_html: false,
                 });
             }
         }
@@ -319,7 +322,7 @@ pub struct LoginResult {
     pub device_id: String,
 }
 
-/// Per-user session persisted in the session store.
+/// Per-user session, persisted by `tower-sessions`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub user_id: String,
@@ -328,14 +331,16 @@ pub struct Session {
     pub homeserver: String,
 }
 
+// One admin command round-trip. `LogEntry` is `Deserialize` because it
+// round-trips through the session store (flash messages); `BotReply` is a
+// per-request value that never leaves process memory, so it isn't.
 #[derive(Debug, Clone, Serialize)]
 pub struct BotReply {
     pub sender: String,
     pub body: String,
-    pub is_html: bool,
 }
 
-/// A single admin command round-trip captured for the on-page console log.
+/// One admin command round-trip, shown in the page's console log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
     pub cmd: String,
@@ -344,40 +349,17 @@ pub struct LogEntry {
     pub is_error: bool,
 }
 
-/// Best-effort detector for tuwunel admin-bot replies that indicate failure.
+/// Detect failure replies from the admin bot.
 ///
-/// Tuwunel wraps many replies — including benign empty-state responses like
-/// `"No rooms are banned."` — with a `"Command failed with error:"` prefix
-/// followed by a fenced block. So the prefix alone isn't a reliable signal.
-/// We inspect the fenced payload and treat "No ..." / empty inner bodies as
-/// non-errors; anything else inside the wrapper is a real error.
+/// Tuwunel wraps many benign responses (e.g. `"No rooms are banned."`) with
+/// a `"Command failed with error:"` prefix and a fenced block, so the prefix
+/// alone isn't reliable. We peek inside the fence and treat empty or
+/// `"No ..."` payloads as success.
 pub fn is_error_reply(body: &str) -> bool {
     let trimmed = body.trim();
-    let lc = trimmed.to_ascii_lowercase();
-
-    if lc.starts_with("command failed with error:") {
-        let inner = fenced_payload(trimmed).unwrap_or("").trim();
-        let inner_lc = inner.to_ascii_lowercase();
-        if inner.is_empty() || inner_lc.starts_with("no ") {
-            return false;
-        }
-        return true;
+    if parse::starts_with_ci(trimmed, "command failed with error:") {
+        let inner = parse::fenced(trimmed).unwrap_or("").trim();
+        return !(inner.is_empty() || parse::starts_with_ci(inner, "no "));
     }
-
-    lc.starts_with("error") || lc.contains("unrecognized subcommand")
-}
-
-/// Extract the first fenced (```…```) payload from a reply body.
-fn fenced_payload(s: &str) -> Option<&str> {
-    let open = s.find("```")?;
-    let after_open = &s[open + 3..];
-    let first_nl = after_open.find('\n')?;
-    let after_nl = &after_open[first_nl + 1..];
-    let close = after_nl.rfind("```")?;
-    Some(&after_nl[..close])
-}
-
-/// Derive server name from an mxid (`@user:server`).
-pub fn server_name_from_mxid(mxid: &str) -> Option<&str> {
-    mxid.split_once(':').map(|(_, s)| s)
+    parse::starts_with_ci(trimmed, "error") || trimmed.contains("unrecognized subcommand")
 }

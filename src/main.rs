@@ -49,12 +49,10 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    // Init config.
     let cli = Cli::parse();
     let cfg = config::Config::load(&cli.config)?;
     let bind = cfg.server.bind.clone();
 
-    // Init templates.
     let tera = Tera::new("templates/**/*.html")?;
     let matrix = matrix::Matrix::new();
     let state = Arc::new(Ctx {
@@ -63,7 +61,6 @@ async fn main() -> Result<()> {
         matrix,
     });
 
-    // Setup a simple in-memory sess store.
     let sess = SessionManagerLayer::new(MemoryStore::default())
         .with_secure(false)
         .with_same_site(tower_sessions::cookie::SameSite::Lax);

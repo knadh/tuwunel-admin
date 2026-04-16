@@ -10,16 +10,14 @@ use tower_sessions::Session;
 
 use super::{
     base_ctx, checkbox, insert_flash, install_log, markdown_to_html, redirect, redirect_with_err,
-    render, run_and_flash, set_flash, split_lines, take_flash, with_fenced_payload,
+    render, run_and_redirect, set_flash, split_lines, take_flash, with_fenced_payload,
 };
 use crate::{matrix, users, Ctx};
 
 #[derive(Deserialize)]
 pub struct CreateUserForm {
     pub username: String,
-    #[serde(default)]
     pub password: Option<String>,
-    #[serde(default)]
     pub generate: Option<String>,
 }
 
@@ -45,16 +43,13 @@ pub struct EventIdForm {
 
 #[derive(Deserialize)]
 pub struct DeactivateForm {
-    #[serde(default)]
     pub no_leave_rooms: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct DeactivateAllForm {
     pub mxids: String,
-    #[serde(default)]
     pub no_leave_rooms: Option<String>,
-    #[serde(default)]
     pub force: Option<String>,
 }
 
@@ -118,21 +113,20 @@ pub async fn create(
                 )
                 .await;
             }
-            Err(e) => {
-                set_flash(&session, "error", format!("{e:#}")).await;
-            }
+            Err(e) => set_flash(&session, "error", format!("{e:#}")).await,
         }
+        redirect("/users")
     } else {
-        run_and_flash(
+        run_and_redirect(
             &st,
             &sess,
             &session,
             &cmd,
             &format!("Created user {username}"),
+            "/users",
         )
-        .await;
+        .await
     }
-    redirect("/users")
 }
 
 pub async fn detail(
@@ -171,15 +165,15 @@ pub async fn reset_password(
         return redirect_with_err(&session, "Password is required.", &back).await;
     }
     let cmd = format!("users reset-password {mxid} {}", f.password);
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Reset password for {mxid}"),
+        &back,
     )
-    .await;
-    redirect(&back)
+    .await
 }
 
 pub async fn deactivate(
@@ -194,8 +188,15 @@ pub async fn deactivate(
     } else {
         format!("users deactivate {mxid}")
     };
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Deactivated {mxid}")).await;
-    redirect("/users")
+    run_and_redirect(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Deactivated {mxid}"),
+        "/users",
+    )
+    .await
 }
 
 pub async fn deactivate_all(
@@ -217,15 +218,15 @@ pub async fn deactivate_all(
     }
     let n = mxids.len();
     let cmd = with_fenced_payload(&head, &mxids.join("\n"));
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Deactivated {n} user(s)"),
+        "/users",
     )
-    .await;
-    redirect("/users")
+    .await
 }
 
 pub async fn make_admin(
@@ -234,16 +235,17 @@ pub async fn make_admin(
     Extension(sess): Extension<matrix::Session>,
     Path(mxid): Path<String>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let cmd = format!("users make-user-admin {mxid}");
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Granted admin to {mxid}"),
+        &back,
     )
-    .await;
-    redirect(&format!("/users/{mxid}"))
+    .await
 }
 
 pub async fn force_join(
@@ -259,15 +261,15 @@ pub async fn force_join(
         return redirect_with_err(&session, "Room is required.", &back).await;
     }
     let cmd = format!("users force-join-room {mxid} {room}");
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Joined {mxid} to {room}"),
+        &back,
     )
-    .await;
-    redirect(&back)
+    .await
 }
 
 pub async fn force_leave(
@@ -283,15 +285,15 @@ pub async fn force_leave(
         return redirect_with_err(&session, "Room ID is required.", &back).await;
     }
     let cmd = format!("users force-leave-room {mxid} {room}");
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Removed {mxid} from {room}"),
+        &back,
     )
-    .await;
-    redirect(&back)
+    .await
 }
 
 pub async fn redact_event(
@@ -307,8 +309,15 @@ pub async fn redact_event(
         return redirect_with_err(&session, "Event ID is required.", &back).await;
     }
     let cmd = format!("users redact-event {evt}");
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Redacted {evt}")).await;
-    redirect(&back)
+    run_and_redirect(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Redacted {evt}"),
+        &back,
+    )
+    .await
 }
 
 pub async fn delete_device(
@@ -317,16 +326,17 @@ pub async fn delete_device(
     Extension(sess): Extension<matrix::Session>,
     Path((mxid, device_id)): Path<(String, String)>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let cmd = format!("users delete-device {mxid} {device_id}");
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Deleted device {device_id}"),
+        &back,
     )
-    .await;
-    redirect(&format!("/users/{mxid}"))
+    .await
 }
 
 pub async fn force_promote(
@@ -335,16 +345,17 @@ pub async fn force_promote(
     Extension(sess): Extension<matrix::Session>,
     Path((mxid, room_id)): Path<(String, String)>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let cmd = format!("users force-promote {mxid} {room_id}");
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Promoted {mxid} in {room_id}"),
+        &back,
     )
-    .await;
-    redirect(&format!("/users/{mxid}"))
+    .await
 }
 
 pub async fn force_demote(
@@ -353,16 +364,17 @@ pub async fn force_demote(
     Extension(sess): Extension<matrix::Session>,
     Path((mxid, room_id)): Path<(String, String)>,
 ) -> Response {
+    let back = format!("/users/{mxid}");
     let cmd = format!("users force-demote {mxid} {room_id}");
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Demoted {mxid} in {room_id}"),
+        &back,
     )
-    .await;
-    redirect(&format!("/users/{mxid}"))
+    .await
 }
 
 pub async fn room_tag(
@@ -388,8 +400,7 @@ pub async fn room_tag(
             format!("Tagged {room_id} as {tag}"),
         )
     };
-    run_and_flash(&st, &sess, &session, &cmd, &msg).await;
-    redirect(&back)
+    run_and_redirect(&st, &sess, &session, &cmd, &msg, &back).await
 }
 
 pub async fn get_room_tags(

@@ -18,11 +18,7 @@ use std::sync::Arc;
 use tera::Context;
 use tower_sessions::Session;
 
-use crate::{
-    commands,
-    matrix::{self, server_name_from_mxid},
-    server as server_mod, Ctx,
-};
+use crate::{commands, matrix, server as server_mod, Ctx};
 
 const SESS_KEY: &str = "sess";
 const FLASH_KEY: &str = "flash";
@@ -31,7 +27,6 @@ const FLASH_KEY: &str = "flash";
 pub(super) struct Flash {
     kind: String,
     text: String,
-    #[serde(default)]
     log: Option<matrix::LogEntry>,
 }
 
@@ -43,17 +38,21 @@ pub(super) async fn take_flash(session: &Session) -> Option<Flash> {
     f
 }
 
-pub(super) async fn set_flash(session: &Session, kind: &str, text: impl Into<String>) {
+async fn write_flash(session: &Session, kind: &str, text: String, log: Option<matrix::LogEntry>) {
     let _ = session
         .insert(
             FLASH_KEY,
             &Flash {
                 kind: kind.into(),
-                text: text.into(),
-                log: None,
+                text,
+                log,
             },
         )
         .await;
+}
+
+pub(super) async fn set_flash(session: &Session, kind: &str, text: impl Into<String>) {
+    write_flash(session, kind, text.into(), None).await;
 }
 
 async fn set_flash_with_log(
@@ -62,16 +61,7 @@ async fn set_flash_with_log(
     text: impl Into<String>,
     log: matrix::LogEntry,
 ) {
-    let _ = session
-        .insert(
-            FLASH_KEY,
-            &Flash {
-                kind: kind.into(),
-                text: text.into(),
-                log: Some(log),
-            },
-        )
-        .await;
+    write_flash(session, kind, text.into(), Some(log)).await;
 }
 
 pub(super) fn insert_flash(ctx: &mut Context, flash: Option<Flash>) {
@@ -80,7 +70,7 @@ pub(super) fn insert_flash(ctx: &mut Context, flash: Option<Flash>) {
     }
 }
 
-// Sanitize a ?next= target: only allow single-slash absolute paths.
+// Only allow single-slash absolute paths to defeat open-redirect.
 fn safe_next(next: Option<&str>) -> String {
     match next {
         Some(n) if n.starts_with('/') && !n.starts_with("//") && !n.starts_with("/\\") => {
@@ -90,10 +80,9 @@ fn safe_next(next: Option<&str>) -> String {
     }
 }
 
-// Build a redirect to the login page, preserving the current URI as ?next=.
 fn redirect_to_login(uri: &Uri) -> Response {
     let path = uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
-    if path == "/" || path.is_empty() || path == "/login" {
+    if matches!(path, "/" | "/login") {
         Redirect::to("/login").into_response()
     } else {
         Redirect::to(&format!("/login?next={}", urlencoding::encode(path))).into_response()
@@ -102,17 +91,13 @@ fn redirect_to_login(uri: &Uri) -> Response {
 
 #[derive(Deserialize, Default)]
 pub struct NextQuery {
-    #[serde(default)]
     pub next: Option<String>,
 }
 
-// Parse an HTML form checkbox value into a bool. Browsers send "on" when checked,
-// but we also accept a few other truthy spellings for robustness.
 pub(super) fn checkbox(val: Option<&str>) -> bool {
-    matches!(val, Some("on" | "true" | "1" | "yes"))
+    val == Some("on")
 }
 
-// Split a textarea value into non-empty trimmed lines.
 pub(super) fn split_lines(text: &str) -> Vec<&str> {
     text.lines()
         .map(str::trim)
@@ -120,42 +105,49 @@ pub(super) fn split_lines(text: &str) -> Vec<&str> {
         .collect()
 }
 
-// Build a redirect response to the given path.
 pub(super) fn redirect(to: &str) -> Response {
     Redirect::to(to).into_response()
 }
 
-// Flash an error, then redirect. Shorthand for the "missing required field" pattern.
 pub(super) async fn redirect_with_err(session: &Session, msg: &str, to: &str) -> Response {
     set_flash(session, "error", msg).await;
     redirect(to)
 }
 
-// Wrap an admin command body in a fenced code block, appended after the command line.
-// Used by commands that accept a list payload (ban-list, deactivate-all, delete-list, ...).
+// Append a fenced payload after the command line. Used by list-payload commands
+// like `ban-list`, `deactivate-all`, `delete-list`.
 pub(super) fn with_fenced_payload(cmd: &str, payload: &str) -> String {
     format!("{cmd}\n```\n{payload}\n```")
 }
 
-// Render the login page.
+pub(super) fn cmd_flag(cmd: &mut String, name: &str, val: Option<&String>) {
+    if let Some(val) = val.map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        cmd.push_str(" --");
+        cmd.push_str(name);
+        cmd.push(' ');
+        cmd.push_str(val);
+    }
+}
+
+fn configured_homeservers(st: &Ctx) -> Vec<String> {
+    st.config
+        .matrix
+        .homeservers
+        .iter()
+        .map(|h| matrix::normalize(h))
+        .filter(|h| !h.is_empty())
+        .collect()
+}
+
 pub async fn login_page(State(st): State<Arc<Ctx>>, Query(q): Query<NextQuery>) -> Response {
     let next = safe_next(q.next.as_deref());
     render(&st, "login.html", &login_ctx(&st, None, &next))
 }
 
-// Wrap the context.
 fn login_ctx(st: &Ctx, error: Option<&str>, next: &str) -> Context {
     let mut ctx = Context::new();
-    let homeservers: Vec<String> = st
-        .config
-        .matrix
-        .homeservers
-        .iter()
-        .map(|h| matrix::Matrix::normalize(h))
-        .filter(|h| !h.is_empty())
-        .collect();
+    let homeservers = configured_homeservers(st);
     let allow_any = st.config.matrix.allow_any_server;
-    ctx.insert("homeservers", &homeservers);
     ctx.insert("allow_any_server", &allow_any);
     ctx.insert("next", next);
     if homeservers.is_empty() && !allow_any {
@@ -164,6 +156,7 @@ fn login_ctx(st: &Ctx, error: Option<&str>, next: &str) -> Context {
             "No homeservers are configured. Set [matrix].homeservers or allow_any_server = true.",
         );
     }
+    ctx.insert("homeservers", &homeservers);
     if let Some(e) = error {
         ctx.insert("error", e);
     }
@@ -175,11 +168,9 @@ fn login_ctx(st: &Ctx, error: Option<&str>, next: &str) -> Context {
 pub struct LoginForm {
     pub username: String,
     pub password: String,
-    #[serde(default)]
     pub homeserver: String,
 }
 
-// Handle login form submission.
 pub async fn login_submit(
     State(st): State<Arc<Ctx>>,
     session: Session,
@@ -197,7 +188,6 @@ pub async fn login_submit(
     }
 }
 
-// Do the auth and login flow, set the session.
 async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()> {
     let homeserver = pick_homeserver(st, &f)?;
 
@@ -212,9 +202,10 @@ async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()
         )
         .await?;
 
-    // Derive or use configured admin room alias.
     let alias = if st.config.matrix.admin_room_alias.is_empty() {
-        let server = server_name_from_mxid(&login.user_id)
+        let (_, server) = login
+            .user_id
+            .split_once(':')
             .ok_or_else(|| anyhow::anyhow!("invalid mxid: {}", login.user_id))?;
         format!("#admins:{server}")
     } else {
@@ -231,7 +222,7 @@ async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()
         .matrix
         .joined_members(&homeserver, &login.access_token, &admin_room_id)
         .await?;
-    if !members.iter().any(|m| m == &login.user_id) {
+    if !members.contains(&login.user_id) {
         anyhow::bail!(
             "user {} is not a member of the admin room {} (not a server admin)",
             login.user_id,
@@ -249,23 +240,15 @@ async fn do_login(st: &Ctx, session: Session, f: LoginForm) -> anyhow::Result<()
     Ok(())
 }
 
-// Pick and validate the homeserver URL from the submitted login form.
 fn pick_homeserver(st: &Ctx, f: &LoginForm) -> anyhow::Result<String> {
-    let configured: Vec<String> = st
-        .config
-        .matrix
-        .homeservers
-        .iter()
-        .map(|h| matrix::Matrix::normalize(h))
-        .filter(|h| !h.is_empty())
-        .collect();
+    let configured = configured_homeservers(st);
     let allow_any = st.config.matrix.allow_any_server;
 
     if configured.is_empty() && !allow_any {
         anyhow::bail!("no homeservers are configured");
     }
 
-    let submitted = matrix::Matrix::normalize(&f.homeserver);
+    let submitted = matrix::normalize(&f.homeserver);
     if submitted.is_empty() {
         anyhow::bail!("select or enter a homeserver URL");
     }
@@ -278,7 +261,6 @@ fn pick_homeserver(st: &Ctx, f: &LoginForm) -> anyhow::Result<String> {
     Ok(submitted)
 }
 
-// Delete the session and logout.
 pub async fn logout(State(st): State<Arc<Ctx>>, session: Session) -> Response {
     if let Ok(Some(s)) = session.get::<matrix::Session>(SESS_KEY).await {
         let _ = st.matrix.logout(&s.homeserver, &s.access_token).await;
@@ -287,8 +269,7 @@ pub async fn logout(State(st): State<Arc<Ctx>>, session: Session) -> Response {
     Redirect::to("/login").into_response()
 }
 
-// Auth middleware: requires a valid session on protected routes. Redirects to
-// /login?next=<uri> otherwise, and injects matrix::Session into the request.
+// Injects matrix::Session into the request; redirects to /login?next=<uri> if absent.
 pub async fn require_auth(
     session: Session,
     OriginalUri(uri): OriginalUri,
@@ -309,19 +290,16 @@ pub async fn require_auth(
     }
 }
 
-// Render the dashboard page.
 pub async fn index(
     State(st): State<Arc<Ctx>>,
     Extension(sess): Extension<matrix::Session>,
 ) -> Response {
     let mut ctx = base_ctx(&st, &sess, "home");
-    ctx.insert("modules", commands::MODULES);
     let dash = server_mod::dashboard(&st.matrix, &sess).await;
     ctx.insert("dash", &dash);
     render(&st, "dashboard.html", &ctx)
 }
 
-// Wrap the context with common fields.
 pub(super) fn base_ctx(_st: &Ctx, sess: &matrix::Session, active: &str) -> Context {
     let mut ctx = Context::new();
     ctx.insert("user_id", &sess.user_id);
@@ -332,7 +310,6 @@ pub(super) fn base_ctx(_st: &Ctx, sess: &matrix::Session, active: &str) -> Conte
     ctx
 }
 
-// Render a template and handle errors.
 pub(super) fn render(st: &Ctx, template: &str, ctx: &Context) -> Response {
     match st.tera.render(template, ctx) {
         Ok(body) => Html(body).into_response(),
@@ -349,34 +326,24 @@ pub(super) fn render(st: &Ctx, template: &str, ctx: &Context) -> Response {
     }
 }
 
-// Merge the flash's attached log entry (if any) with this page's log, insert
-// into ctx, and raise a `log_warning` flag if any entry looks like an error.
+// Prepend the flash's log entry (if any) to this page's log and insert into ctx.
 pub(super) fn install_log(
     ctx: &mut Context,
     flash: Option<&Flash>,
     mut page_log: Vec<matrix::LogEntry>,
 ) {
-    let from_flash = flash.and_then(|f| f.log.clone());
-    let merged = if let Some(entry) = from_flash.clone() {
-        let mut out = Vec::with_capacity(page_log.len() + 1);
-        out.push(entry);
-        out.append(&mut page_log);
-        out
-    } else {
-        page_log
-    };
-    let any_error = merged.iter().any(|e| e.is_error);
-    ctx.insert("log", &merged);
-    if any_error {
-        ctx.insert("log_has_error", &true);
-    }
-    if from_flash.is_some() {
+    if let Some(entry) = flash.and_then(|f| f.log.clone()) {
+        page_log.insert(0, entry);
         ctx.insert("log_open", &true);
     }
+    if page_log.iter().any(|e| e.is_error) {
+        ctx.insert("log_has_error", &true);
+    }
+    ctx.insert("log", &page_log);
 }
 
-// Run an admin command and set a one-shot flash message based on the outcome.
-// Tuwunel's bot replies are free-form; treat any reply body starting with "error" as an error.
+// Tuwunel's bot replies are free-form text, not status codes, so we sniff for
+// failure by body content (see `is_error_reply`) rather than a reply type.
 pub(super) async fn run_and_flash(
     st: &Ctx,
     sess: &matrix::Session,
@@ -384,39 +351,33 @@ pub(super) async fn run_and_flash(
     cmd: &str,
     success: &str,
 ) {
-    match st.matrix.run_admin(sess, cmd).await {
-        Ok(r) => {
-            let looks_error = matrix::is_error_reply(&r.body);
-            let kind = if looks_error { "error" } else { "success" };
-            let text = if looks_error {
-                format!("Command failed: {cmd}")
-            } else {
-                success.to_string()
-            };
-            let log = matrix::LogEntry {
-                cmd: cmd.to_string(),
-                body: r.body,
-                is_error: looks_error,
-            };
-            set_flash_with_log(session, kind, text, log).await;
+    let (kind, text, body, is_error) = match st.matrix.run_admin(sess, cmd).await {
+        Ok(r) if matrix::is_error_reply(&r.body) => {
+            ("error", format!("Command failed: {cmd}"), r.body, true)
         }
-        Err(e) => {
-            set_flash_with_log(
-                session,
-                "error",
-                format!("{e:#}"),
-                matrix::LogEntry {
-                    cmd: cmd.to_string(),
-                    body: String::new(),
-                    is_error: true,
-                },
-            )
-            .await;
-        }
-    }
+        Ok(r) => ("success", success.to_string(), r.body, false),
+        Err(e) => ("error", format!("{e:#}"), String::new(), true),
+    };
+    let log = matrix::LogEntry {
+        cmd: cmd.to_string(),
+        body,
+        is_error,
+    };
+    set_flash_with_log(session, kind, text, log).await;
 }
 
-// Convert markdown to HTML for rendering command replies.
+pub(super) async fn run_and_redirect(
+    st: &Ctx,
+    sess: &matrix::Session,
+    session: &Session,
+    cmd: &str,
+    success: &str,
+    to: &str,
+) -> Response {
+    run_and_flash(st, sess, session, cmd, success).await;
+    redirect(to)
+}
+
 pub(super) fn markdown_to_html(md: &str) -> String {
     use pulldown_cmark::{html, Options, Parser};
     let mut opts = Options::empty();

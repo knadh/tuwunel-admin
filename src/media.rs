@@ -1,8 +1,5 @@
-//! Domain logic for the Media module.
-//!
-//! Tuwunel does not expose a listable media index over the admin-bot,
-//! so this module is tools-oriented: a lookup by MXC URL and a set of
-//! targeted purge commands.
+//! Media: lookup by MXC URL and targeted purge commands. Tuwunel does not
+//! expose a listable media index over the admin bot, so there's no list view.
 
 use anyhow::Result;
 use serde::Serialize;
@@ -22,13 +19,9 @@ pub async fn file_info(
     mxc: &str,
 ) -> Result<(FileInfo, Vec<matrix::LogEntry>)> {
     let mut log = Vec::new();
-    let cmd = format!("media get-file-info {mxc}");
-    let reply = mx.run_admin(sess, &cmd).await?;
-    log.push(matrix::LogEntry {
-        cmd,
-        body: reply.body.clone(),
-        is_error: matrix::is_error_reply(&reply.body),
-    });
+    let reply = mx
+        .run_logged(sess, &format!("media get-file-info {mxc}"), &mut log)
+        .await?;
     let fields = parse::media_file_info(&reply.body).unwrap_or_default();
     Ok((
         FileInfo {

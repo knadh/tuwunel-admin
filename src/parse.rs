@@ -1,26 +1,22 @@
-//! Parsers for tuwunel admin-bot reply bodies.
-//!
-//! Parsers are best-effort. When a reply does not match the expected shape
-//! they return `None` and the caller falls back to rendering the raw markdown.
+//! Best-effort parsers for tuwunel admin-bot reply bodies. On shape mismatch
+//! they return `None`/empty and the caller falls back to raw markdown.
 
-/// `Found N local user account(s):\n```\n@mxid\n@mxid\n...\n````
+/// `users list-users`: mxids from the fenced block under the `Found N ...` header.
 pub fn list_users(body: &str) -> Option<Vec<String>> {
     if !body.trim_start().starts_with("Found ") {
         return None;
     }
-    let mxids: Vec<String> = body
+    let v: Vec<String> = body
         .lines()
         .map(str::trim)
         .filter(|l| l.starts_with('@') && l.contains(':'))
-        .map(|l| l.to_string())
+        .map(str::to_string)
         .collect();
-    if mxids.is_empty() {
-        return None;
-    }
-    Some(mxids)
+    (!v.is_empty()).then_some(v)
 }
 
-/// Line shape: `YYYY-MM-DDTHH:MM:SS.mmm localpart`. Returns (localpart, timestamp).
+/// `users last-active`: `YYYY-MM-DDTHH:MM:SS.mmm localpart` lines.
+/// Returns (localpart, timestamp) pairs.
 pub fn last_active(body: &str) -> Option<Vec<(String, String)>> {
     let mut out = Vec::new();
     for line in body.lines() {
@@ -35,16 +31,11 @@ pub fn last_active(body: &str) -> Option<Vec<(String, String)>> {
             continue;
         }
         let localpart = rest.trim();
-        if localpart.is_empty() {
-            continue;
+        if !localpart.is_empty() {
+            out.push((localpart.to_string(), ts.to_string()));
         }
-        out.push((localpart.to_string(), ts.to_string()));
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -61,10 +52,7 @@ pub struct RoomRow {
     pub members: u32,
 }
 
-/// Best-effort parser for `rooms list` output. Accepts lines whose first
-/// tab-separated field starts with `!` and tries to extract `Members: N`
-/// and `Name: X` from the remaining fields (in any order). Unknown fields
-/// are ignored. Returns None if no room-shaped lines are found.
+/// `rooms list`: `!room_id\tMembers: N\tName: X` lines, fields in any order.
 pub fn list_rooms(body: &str) -> Option<Vec<RoomRow>> {
     let mut out = Vec::new();
     for line in body.lines() {
@@ -76,32 +64,27 @@ pub fn list_rooms(body: &str) -> Option<Vec<RoomRow>> {
         let room_id = parts.next()?.trim().to_string();
         let mut name = String::new();
         let mut members: u32 = 0;
-        for p in parts {
-            let p = p.trim();
+        for p in parts.map(str::trim) {
             if let Some(rest) = p.strip_prefix("Members:") {
                 members = rest.trim().parse().unwrap_or(0);
             } else if let Some(rest) = p.strip_prefix("Name:") {
                 name = rest.trim().to_string();
             }
         }
-        let name = if name == room_id { String::new() } else { name };
+        if name == room_id {
+            name.clear();
+        }
         out.push(RoomRow {
             room_id,
             name,
             members,
         });
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
-/// Best-effort parser for `rooms info list-joined-members`. Extracts the
-/// first mxid-shaped token (`@localpart:server`) from each line, ignoring
-/// trailing display-name suffixes like ` | Deepa`, markdown list markers,
-/// or any surrounding HTML.
+/// `rooms info list-joined-members`: pulls the first `@localpart:server`
+/// token off each line, ignoring display-name suffixes and HTML wrapping.
 pub fn list_joined_members(body: &str) -> Option<Vec<String>> {
     let mut mxids: Vec<String> = Vec::new();
     for line in body.lines() {
@@ -117,53 +100,21 @@ pub fn list_joined_members(body: &str) -> Option<Vec<String>> {
             mxids.push(token.to_string());
         }
     }
-    if mxids.is_empty() {
-        None
-    } else {
-        Some(mxids)
-    }
+    (!mxids.is_empty()).then_some(mxids)
 }
 
-/// Best-effort parser for `federation incoming-federation`. Returns the
-/// list of room_ids with incoming federation enabled.
+/// `federation incoming-federation`: room_ids with federation enabled.
 pub fn list_federated_rooms(body: &str) -> Option<Vec<String>> {
-    let ids: Vec<String> = body
-        .lines()
-        .map(str::trim)
-        .filter(|l| l.starts_with('!'))
-        .map(|l| {
-            l.split(|c: char| c.is_whitespace() || c == '\t')
-                .next()
-                .unwrap_or(l)
-                .trim()
-                .to_string()
-        })
-        .collect();
-    if ids.is_empty() {
-        None
-    } else {
-        Some(ids)
-    }
+    list_bang_ids(body)
 }
 
-/// Best-effort parser for `rooms moderation list-banned-rooms`. Returns
-/// the list of banned room_ids.
+/// `rooms moderation list-banned-rooms`: banned room_ids.
 pub fn list_banned_rooms(body: &str) -> Option<Vec<String>> {
-    let ids: Vec<String> = body
-        .lines()
-        .map(str::trim)
-        .filter(|l| l.starts_with('!'))
-        .map(|l| l.split('\t').next().unwrap_or(l).trim().to_string())
-        .collect();
-    if ids.is_empty() {
-        None
-    } else {
-        Some(ids)
-    }
+    list_bang_ids(body)
 }
 
-/// `Appservices (N): id1, id2, id3`. Returns the list of IDs (possibly empty
-/// for N=0). Returns None only if the header is missing.
+/// `Appservices (N): id1, id2, ...`. Returns an empty Vec for N=0;
+/// None only if the `Appservices` header is missing.
 pub fn list_appservices(body: &str) -> Option<Vec<String>> {
     let trimmed = body.trim();
     let after = trimmed.strip_prefix("Appservices")?;
@@ -180,17 +131,9 @@ pub fn list_appservices(body: &str) -> Option<Vec<String>> {
     Some(ids)
 }
 
-/// Extract the YAML payload from an `appservices show-config` reply. The reply
-/// shape is `Config for {id}:\n\n```yaml\n...\n```` — we return the fenced
-/// body. Falls back to None if no fenced block is found.
+/// `appservices show-config` YAML body, i.e. the payload inside the yaml fence.
 pub fn appservice_config_yaml(body: &str) -> Option<String> {
-    let s = body;
-    let open = s.find("```")?;
-    let after_open = &s[open + 3..];
-    let first_nl = after_open.find('\n')?;
-    let after_nl = &after_open[first_nl + 1..];
-    let close = after_nl.rfind("```")?;
-    Some(after_nl[..close].trim_end_matches('\n').to_string())
+    fenced(body).map(|s| s.trim_end_matches('\n').to_string())
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -202,23 +145,17 @@ pub struct TokenRow {
     pub expiration: Option<String>,
 }
 
-/// Best-effort parser for `token list`. Tuwunel emits one bullet per token:
+/// `token list`: one bullet per token:
 ///   ``- `TOKEN` --- Token used N times. Expires after M uses or in X days (YYYY-MM-DD HH:MM:SS).``
-/// Expiration wording varies: `Expires after M uses`, `or in X days (TS)`, or
-/// `Does not expire`. We extract what's there and leave the rest None.
+/// Expiration wording varies (`after M uses`, `in X days (TS)`, `Does not expire`);
+/// missing pieces become None.
 pub fn list_tokens(body: &str) -> Option<Vec<TokenRow>> {
     let mut out = Vec::new();
     for line in body.lines() {
-        let line = line.trim();
-        let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) else {
+        let Some(rest) = bullet(line.trim()).and_then(|r| r.strip_prefix('`')) else {
             continue;
         };
-        let Some(rest) = rest.strip_prefix('`') else {
-            continue;
-        };
-        let Some(end) = rest.find('`') else {
-            continue;
-        };
+        let Some(end) = rest.find('`') else { continue };
         let token = rest[..end].trim().to_string();
         if token.is_empty() {
             continue;
@@ -227,13 +164,10 @@ pub fn list_tokens(body: &str) -> Option<Vec<TokenRow>> {
 
         let completed = extract_u32(tail, "used ", " time").unwrap_or(0);
         let uses_allowed = extract_u32(tail, "after ", " use");
-        let expiration = tail.rfind('(').zip(tail.rfind(')')).and_then(|(a, b)| {
-            if a < b {
-                Some(tail[a + 1..b].trim().to_string())
-            } else {
-                None
-            }
-        });
+        let expiration = tail
+            .rfind('(')
+            .zip(tail.rfind(')'))
+            .and_then(|(a, b)| (a < b).then(|| tail[a + 1..b].trim().to_string()));
 
         out.push(TokenRow {
             token,
@@ -243,14 +177,10 @@ pub fn list_tokens(body: &str) -> Option<Vec<TokenRow>> {
             expiration,
         });
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
-/// Pull a u32 from `haystack` sitting between `before` and `after`.
+/// Parse a u32 from the slice between the first `before` and the next `after`.
 fn extract_u32(haystack: &str, before: &str, after: &str) -> Option<u32> {
     let start = haystack.find(before)? + before.len();
     let rest = &haystack[start..];
@@ -258,20 +188,43 @@ fn extract_u32(haystack: &str, before: &str, after: &str) -> Option<u32> {
     rest[..end].trim().parse().ok()
 }
 
+/// ASCII case-insensitive `str::starts_with`. Unlike `to_ascii_lowercase`,
+/// this doesn't allocate a lowercased copy of the whole string.
+pub fn starts_with_ci(s: &str, prefix: &str) -> bool {
+    s.get(..prefix.len())
+        .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+}
+
 /// Extract the first fenced (```…```) payload from a reply body.
-fn fenced(s: &str) -> Option<String> {
+pub fn fenced(s: &str) -> Option<&str> {
     let open = s.find("```")?;
     let after_open = &s[open + 3..];
     let first_nl = after_open.find('\n')?;
     let after_nl = &after_open[first_nl + 1..];
     let close = after_nl.rfind("```")?;
-    Some(after_nl[..close].to_string())
+    Some(&after_nl[..close])
 }
 
-/// Best-effort parser for `media get-file-info` output. Extracts `key: value`
-/// pairs from a fenced or plaintext body. Returns None if nothing matched.
+/// Strip `- ` or `* ` off a markdown bullet line.
+fn bullet(line: &str) -> Option<&str> {
+    line.strip_prefix("- ").or_else(|| line.strip_prefix("* "))
+}
+
+/// First whitespace-delimited token from each `!`-prefixed line.
+/// Shared by `list-banned-rooms`, `incoming-federation`, etc.
+fn list_bang_ids(body: &str) -> Option<Vec<String>> {
+    let ids: Vec<String> = body
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with('!'))
+        .map(|l| l.split_whitespace().next().unwrap_or(l).to_string())
+        .collect();
+    (!ids.is_empty()).then_some(ids)
+}
+
+/// `media get-file-info`: `key: value` pairs from a fenced or plain body.
 pub fn media_file_info(body: &str) -> Option<Vec<(String, String)>> {
-    let inner = fenced(body).unwrap_or_else(|| body.to_string());
+    let inner = fenced(body).unwrap_or(body);
     let mut out = Vec::new();
     for line in inner.lines() {
         let line = line.trim();
@@ -288,11 +241,7 @@ pub fn media_file_info(body: &str) -> Option<Vec<(String, String)>> {
         }
         out.push((k.to_string(), v.to_string()));
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -303,26 +252,12 @@ pub struct DeviceRow {
     pub last_seen_ts: Option<String>,
 }
 
-/// Parse `query users list-devices-metadata` output. The body is a Rust
-/// `Debug` print of a `Vec<Device>` inside a ```rs fence, like:
-/// ```
-/// [
-///     Device {
-///         device_id: "abc",
-///         display_name: Some(
-///             "foo",
-///         ),
-///         last_seen_ip: Some("1.2.3.4"),
-///         last_seen_ts: Some(2026-04-14T14:15:44.915),
-///     },
-///     ...
-/// ]
-/// ```
+/// `query users list-devices-metadata`: a `Vec<Device>` Rust-Debug print
+/// inside a ```rs fence, with `Some(...)` values broken across lines.
 pub fn list_devices(body: &str) -> Option<Vec<DeviceRow>> {
     let inner = fenced(body)?;
-    // Collapse multi-line `Some(\n  value,\n)` into `Some(value,)` to make
-    // line-oriented parsing tractable.
-    let collapsed = collapse_some_blocks(&inner);
+    // Flatten `Some(\n  value,\n)` to `Some(value,)` for line-oriented parsing.
+    let collapsed = collapse_some_blocks(inner);
     let mut out = Vec::new();
     let mut cur: Option<DeviceRow> = None;
     for line in collapsed.lines() {
@@ -359,22 +294,15 @@ pub fn list_devices(body: &str) -> Option<Vec<DeviceRow>> {
             _ => {}
         }
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
-/// Fold `Some(\n    X,\n)` into a single line `Some(X)`, preserving everything
-/// else. Used to simplify Rust-Debug parsing.
+/// Fold `(\n    X,\n)` into `(X)`, preserving nesting and non-multiline parens.
 fn collapse_some_blocks(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '(' {
-            // Look ahead: if the next non-space char is a newline, consume
-            // through the matching close-paren and flatten.
             let mut lookahead = String::new();
             let mut depth = 1;
             let mut saw_newline = false;
@@ -395,7 +323,6 @@ fn collapse_some_blocks(s: &str) -> String {
             }
             out.push('(');
             if saw_newline {
-                // Flatten: strip surrounding whitespace on each line.
                 let flat: String = lookahead
                     .split('\n')
                     .map(str::trim)
@@ -413,8 +340,7 @@ fn collapse_some_blocks(s: &str) -> String {
     out
 }
 
-/// Handle Rust Debug value forms: `None`, `Some(X)`, quoted strings, bare
-/// dates, numbers. Returns the inner value as a string or None.
+/// Unwrap one Rust-Debug value: `None`, `Some(X)`, `"string"`, or a bare token.
 fn parse_debug_value(v: &str) -> Option<String> {
     let v = v.trim().trim_end_matches(',').trim();
     if v == "None" || v.is_empty() {
@@ -432,22 +358,12 @@ fn parse_debug_value(v: &str) -> Option<String> {
     Some(v.to_string())
 }
 
-/// Rooms alias listing. Format:
-/// ```
-/// Aliases:
-/// - `!roomid:server` -> #alias:server
-/// - `!roomid:server` -> #alias2:server
-/// ```
-/// Returns (room_id, alias) pairs.
+/// `rooms alias list`: bullets of ``- `!room` -> #alias``. Returns (room, alias) pairs.
 #[allow(dead_code)]
 pub fn list_aliases(body: &str) -> Option<Vec<(String, String)>> {
     let mut out = Vec::new();
     for line in body.lines() {
-        let line = line.trim();
-        let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) else {
-            continue;
-        };
-        let Some(rest) = rest.strip_prefix('`') else {
+        let Some(rest) = bullet(line.trim()).and_then(|r| r.strip_prefix('`')) else {
             continue;
         };
         let Some(close) = rest.find('`') else {
@@ -463,11 +379,7 @@ pub fn list_aliases(body: &str) -> Option<Vec<(String, String)>> {
             out.push((room_id, alias));
         }
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
 /// `rooms alias list <ROOM_ID>` body:
@@ -480,8 +392,7 @@ pub fn list_aliases(body: &str) -> Option<Vec<(String, String)>> {
 pub fn aliases_for_room(body: &str) -> Option<Vec<String>> {
     let mut out = Vec::new();
     for line in body.lines() {
-        let line = line.trim();
-        let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) else {
+        let Some(rest) = bullet(line.trim()) else {
             continue;
         };
         let rest = rest.trim().trim_matches('`');
@@ -489,11 +400,7 @@ pub fn aliases_for_room(body: &str) -> Option<Vec<String>> {
             out.push(rest.to_string());
         }
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
 /// `Alias resolves to !roomid:server` → `!roomid:server`.
@@ -504,55 +411,33 @@ pub fn alias_resolves_to(body: &str) -> Option<String> {
         .map(|s| s.trim().to_string())
 }
 
-/// `Room topic:\n```\n…\n``` ` → topic text. Also tolerates a body with just
-/// the topic or a "no topic" message.
+/// Topic text from `rooms info view-room-topic`, or None for "no topic".
 pub fn room_topic(body: &str) -> Option<String> {
     if body.trim().eq_ignore_ascii_case("no topic") {
         return None;
     }
-    fenced(body)
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
+    let t = fenced(body)?.trim();
+    (!t.is_empty()).then(|| t.to_string())
 }
 
-/// `rooms directory list` output: a bullet list of room IDs.
+/// `rooms directory list`: bullet list of published room IDs.
 pub fn list_published_rooms(body: &str) -> Option<Vec<String>> {
-    if body.trim().to_ascii_lowercase().starts_with("no rooms") {
+    if starts_with_ci(body.trim(), "no rooms") {
         return Some(Vec::new());
     }
     let mut out = Vec::new();
     for line in body.lines() {
         let line = line.trim();
-        let rest = line
-            .strip_prefix("- ")
-            .or_else(|| line.strip_prefix("* "))
-            .unwrap_or(line);
-        let rest = rest.trim().trim_matches('`');
+        let rest = bullet(line).unwrap_or(line).trim().trim_matches('`');
         if rest.starts_with('!') && rest.contains(':') {
             out.push(rest.to_string());
         }
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
-/// Parse the body of `server memory-usage` into labelled sections of
-/// `(key, value)` pairs. The tuwunel format is:
-/// ```text
-/// Services:
-///   key: value
-///   ...
-/// Database:
-///   key: value
-///   ...
-/// Allocator:
-///   ...
-/// ```
-/// Lines that don't contain a `:` are ignored. Leading/trailing whitespace and
-/// backticks/fences are stripped.
+/// `server memory-usage`: `Services:` / `Database:` / `Allocator:` sections,
+/// each a block of `key: value` lines. Non-`key:value` lines are dropped.
 pub fn memory_sections(body: &str) -> Vec<(String, Vec<(String, String)>)> {
     let mut out: Vec<(String, Vec<(String, String)>)> = Vec::new();
     let mut current: Option<String> = Some("General".to_string());
@@ -561,7 +446,7 @@ pub fn memory_sections(body: &str) -> Vec<(String, Vec<(String, String)>)> {
         if line.is_empty() || line.starts_with("```") {
             continue;
         }
-        // Section header: a line ending with `:` whose value (after the colon) is empty.
+        // Bare `label:` (no value) is a section header.
         if let Some(label) = line.strip_suffix(':') {
             if !label.is_empty() && !label.contains(':') {
                 current = Some(label.trim().to_string());
@@ -587,16 +472,8 @@ pub fn memory_sections(body: &str) -> Vec<(String, Vec<(String, String)>)> {
     out
 }
 
-/// Parse the body of `server show-config`. Tuwunel's Display impl emits a
-/// markdown table:
-/// ```text
-/// | name | value |
-/// | :--- | :---  |
-/// | key1 | value1 |
-/// ...
-/// ```
-/// Returns `(name, value)` rows, skipping the header and alignment separator.
-/// Values are returned verbatim (may contain markdown). Falls back to empty.
+/// `server show-config`: rows of a `| name | value |` markdown table.
+/// Values are returned verbatim (may contain markdown).
 pub fn config_table(body: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for raw in body.lines() {
@@ -614,7 +491,7 @@ pub fn config_table(body: &str) -> Vec<(String, String)> {
         if name.is_empty() || name.eq_ignore_ascii_case("name") {
             continue;
         }
-        // Alignment row: `:---` / `---` etc.
+        // Markdown alignment row (`:---` / `---`).
         if name.chars().all(|c| matches!(c, ':' | '-' | ' ')) {
             continue;
         }
@@ -623,8 +500,7 @@ pub fn config_table(body: &str) -> Vec<(String, String)> {
     out
 }
 
-/// `users list-users` header is `Found N local user account(s):`. Returns N,
-/// falling back to counting mxid-shaped lines.
+/// Extract `N` from the `Found N local user account(s):` header, or count mxids.
 pub fn count_users(body: &str) -> usize {
     for line in body.lines() {
         if let Some(rest) = line.trim().strip_prefix("Found ") {
@@ -677,51 +553,30 @@ pub fn list_features(body: &str) -> Option<Vec<(String, bool)>> {
     for line in body.lines() {
         let line = line.trim();
         let (enabled, rest) = if let Some(r) = line.strip_prefix("✅") {
-            (true, r.trim())
+            (true, r)
         } else if let Some(r) = line.strip_prefix("❌") {
-            (false, r.trim())
+            (false, r)
         } else {
             continue;
         };
-        let name = rest
-            .split_whitespace()
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if !name.is_empty() {
-            out.push((name, enabled));
+        if let Some(name) = rest.split_whitespace().next() {
+            out.push((name.to_string(), enabled));
         }
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
-/// Rust-Debug array of strings inside a ```rs fence, like:
-/// ```rs
-/// [
-///     "!room:server",
-///     "!room2:server",
-/// ]
-/// ```
-/// Used by `query users get-shared-rooms`, `query users list-devices`, etc.
+/// Rust-Debug `["a", "b", ...]` inside a ```rs fence. Used by
+/// `query users get-shared-rooms`, `query users list-devices`, etc.
 pub fn debug_string_array(body: &str) -> Option<Vec<String>> {
-    let inner = fenced(body)?;
     let mut out = Vec::new();
-    for line in inner.lines() {
+    for line in fenced(body)?.lines() {
         let line = line.trim().trim_end_matches(',').trim();
         if let Some(inner) = line.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
             out.push(inner.to_string());
         }
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }
 
 /// `true` / `false` bare reply for `rooms exists`.
@@ -734,11 +589,8 @@ pub fn bool_reply(body: &str) -> Option<bool> {
     }
 }
 
-/// `rooms info list-joined-members` body header line:
-/// `N Members in Room !roomid:server`. Ignored by `list_joined_members` which
-/// only cares about mxids. No extra parser needed.
-///
-/// `Rooms @mxid Joined (N):\n```\n!room\tMembers: N\tName: X\n...\n````
+/// `users list-joined-rooms`: `!room\tMembers: N\tName: X` lines under the
+/// `Rooms @mxid Joined (N):` header.
 pub fn list_joined_rooms(body: &str) -> Option<Vec<JoinedRoom>> {
     if !body.trim_start().starts_with("Rooms ") {
         return None;
@@ -753,7 +605,6 @@ pub fn list_joined_rooms(body: &str) -> Option<Vec<JoinedRoom>> {
         if parts.len() < 3 {
             continue;
         }
-        let room_id = parts[0].trim().to_string();
         let members = parts[1]
             .trim()
             .strip_prefix("Members:")
@@ -768,14 +619,10 @@ pub fn list_joined_rooms(body: &str) -> Option<Vec<JoinedRoom>> {
             .trim()
             .to_string();
         out.push(JoinedRoom {
-            room_id,
+            room_id: parts[0].trim().to_string(),
             members,
             name,
         });
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    (!out.is_empty()).then_some(out)
 }

@@ -89,7 +89,6 @@ pub async fn remote_user_in_rooms(
     }
 }
 
-// Base ctx + federation overview, shared by the two tool handlers below.
 async fn overview_ctx(st: &Ctx, sess: &matrix::Session) -> tera::Context {
     let mut ctx = base_ctx(st, sess, "federation");
     match federation::overview(&st.matrix, sess).await {

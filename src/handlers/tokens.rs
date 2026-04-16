@@ -8,18 +8,15 @@ use std::sync::Arc;
 use tower_sessions::Session;
 
 use super::{
-    base_ctx, checkbox, insert_flash, install_log, redirect, redirect_with_err, render,
-    run_and_flash, take_flash,
+    base_ctx, checkbox, cmd_flag, insert_flash, install_log, redirect_with_err, render,
+    run_and_redirect, take_flash,
 };
 use crate::{matrix, tokens, Ctx};
 
 #[derive(Deserialize)]
 pub struct IssueTokenForm {
-    #[serde(default)]
     pub max_uses: Option<String>,
-    #[serde(default)]
     pub max_age: Option<String>,
-    #[serde(default)]
     pub once: Option<String>,
 }
 
@@ -49,18 +46,20 @@ pub async fn issue(
     Form(f): Form<IssueTokenForm>,
 ) -> Response {
     let mut cmd = String::from("token issue");
-    let mut push_flag = |name: &str, v: Option<&String>| {
-        if let Some(val) = v.map(|s| s.trim()).filter(|s| !s.is_empty()) {
-            cmd.push_str(&format!(" --{name} {val}"));
-        }
-    };
-    push_flag("max-uses", f.max_uses.as_ref());
-    push_flag("max-age", f.max_age.as_ref());
+    cmd_flag(&mut cmd, "max-uses", f.max_uses.as_ref());
+    cmd_flag(&mut cmd, "max-age", f.max_age.as_ref());
     if checkbox(f.once.as_deref()) {
         cmd.push_str(" --once");
     }
-    run_and_flash(&st, &sess, &session, &cmd, "Issued new registration token").await;
-    redirect("/tokens")
+    run_and_redirect(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        "Issued new registration token",
+        "/tokens",
+    )
+    .await
 }
 
 pub async fn revoke(
@@ -74,13 +73,13 @@ pub async fn revoke(
         return redirect_with_err(&session, "Token is required.", "/tokens").await;
     }
     let cmd = format!("token revoke {trimmed}");
-    run_and_flash(
+    run_and_redirect(
         &st,
         &sess,
         &session,
         &cmd,
         &format!("Revoked token {trimmed}"),
+        "/tokens",
     )
-    .await;
-    redirect("/tokens")
+    .await
 }

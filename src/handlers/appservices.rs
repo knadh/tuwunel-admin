@@ -8,8 +8,7 @@ use std::sync::Arc;
 use tower_sessions::Session;
 
 use super::{
-    base_ctx, insert_flash, install_log, redirect, redirect_with_err, render, run_and_flash,
-    take_flash,
+    base_ctx, insert_flash, install_log, redirect_with_err, render, run_and_redirect, take_flash,
 };
 use crate::{appservices, matrix, Ctx};
 
@@ -70,8 +69,15 @@ pub async fn register(
         return redirect_with_err(&session, "Registration YAML is required.", "/appservices").await;
     }
     let cmd = super::with_fenced_payload("appservices register", yaml);
-    run_and_flash(&st, &sess, &session, &cmd, "Registered appservice").await;
-    redirect("/appservices")
+    run_and_redirect(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        "Registered appservice",
+        "/appservices",
+    )
+    .await
 }
 
 pub async fn unregister(
@@ -81,6 +87,13 @@ pub async fn unregister(
     Path(id): Path<String>,
 ) -> Response {
     let cmd = format!("appservices unregister {id}");
-    run_and_flash(&st, &sess, &session, &cmd, &format!("Unregistered {id}")).await;
-    redirect("/appservices")
+    run_and_redirect(
+        &st,
+        &sess,
+        &session,
+        &cmd,
+        &format!("Unregistered {id}"),
+        "/appservices",
+    )
+    .await
 }
