@@ -15,13 +15,14 @@ mod users;
 use crate::log::info;
 use anyhow::Result;
 use axum::{
+    http::{header, HeaderValue},
     routing::{get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
 use std::sync::Arc;
 use tera::Tera;
-use tower_http::services::ServeDir;
+use tower_http::{services::ServeDir, set_header::SetResponseHeaderLayer};
 use tower_sessions::{MemoryStore, SessionManagerLayer};
 
 #[derive(Parser)]
@@ -234,6 +235,18 @@ async fn main() -> Result<()> {
         .route("/logout", post(handlers::logout))
         .nest_service("/static", ServeDir::new("static"))
         .layer(sess)
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::REFERRER_POLICY,
+            HeaderValue::from_static("same-origin"),
+        ))
         .with_state(state);
 
     info!("listening on {bind}");

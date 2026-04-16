@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
-tower-http = { version = "0.6", features = ["fs"] }
+tower-http = { version = "0.6", features = ["fs", "set-header"] }
 tower-sessions = "0.13"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tera = "1"
