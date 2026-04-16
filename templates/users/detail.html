@@ -85,9 +85,9 @@
                   <td class="align-right">{{ r.members }}</td>
                   <td>
                     <div class="flex gap-2 justify-end flex-wrap">
-                      <button class="outline small" @click="openPromote('{{ r.room_id }}')">Promote</button>
-                      <button class="outline small" data-variant="danger" @click="openDemote('{{ r.room_id }}')">Demote</button>
-                      <button class="outline small" @click="openTag('{{ r.room_id }}')">Tag</button>
+                      <button class="outline small" data-room-id="{{ r.room_id }}" @click="openPromote($el.dataset.roomId)">Promote</button>
+                      <button class="outline small" data-variant="danger" data-room-id="{{ r.room_id }}" @click="openDemote($el.dataset.roomId)">Demote</button>
+                      <button class="outline small" data-room-id="{{ r.room_id }}" @click="openTag($el.dataset.roomId)">Tag</button>
                     </div>
                   </td>
                 </tr>

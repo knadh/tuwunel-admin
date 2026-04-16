@@ -79,8 +79,8 @@
                 </td>
                 <td>
                   <div class="flex gap-2 justify-end flex-wrap">
-                    <button class="outline small" @click="copy('{{ t.token }}')">Copy</button>
-                    <button class="outline small" data-variant="danger" @click="target='{{ t.token }}'" popovertarget="pop-revoke">Revoke</button>
+                    <button class="outline small" data-token="{{ t.token }}" @click="copy($el.dataset.token)">Copy</button>
+                    <button class="outline small" data-variant="danger" data-token="{{ t.token }}" @click="target = $el.dataset.token" popovertarget="pop-revoke">Revoke</button>
                   </div>
                 </td>
               </tr>

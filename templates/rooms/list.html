@@ -80,7 +80,7 @@
               <tr data-room-id="{{ r.room_id }}" data-name="{{ r.name }}" data-members="{{ r.members }}"
                   data-banned="{{ r.banned }}" data-federated="{{ r.federated }}"
                   data-published="{{ r.published }}">
-                <td><input type="checkbox" :value="'{{ r.room_id }}'" x-model="selected"></td>
+                <td><input type="checkbox" value="{{ r.room_id }}" x-model="selected"></td>
                 <td>
                   <a href="/rooms/{{ r.room_id | urlencode }}">{% if r.name %}{{ r.name }}{% else %}<em class="text-light">(unnamed)</em>{% endif %}</a>
                   <br><small class="text-light">{{ r.room_id }}</small>
@@ -100,11 +100,17 @@
                 <td>
                   <div class="flex gap-2 justify-end flex-wrap">
                     {% if r.banned %}
-                      <button popovertarget="pop-unban" class="outline" @click="target='{{ r.room_id }}'; targetName='{{ r.name }}'">Unban</button>
+                      <button popovertarget="pop-unban" class="outline"
+                        data-room-id="{{ r.room_id }}" data-room-name="{{ r.name }}"
+                        @click="target = $el.dataset.roomId; targetName = $el.dataset.roomName">Unban</button>
                     {% else %}
-                      <button popovertarget="pop-ban" class="outline" data-variant="danger" @click="target='{{ r.room_id }}'; targetName='{{ r.name }}'">Ban</button>
+                      <button popovertarget="pop-ban" class="outline" data-variant="danger"
+                        data-room-id="{{ r.room_id }}" data-room-name="{{ r.name }}"
+                        @click="target = $el.dataset.roomId; targetName = $el.dataset.roomName">Ban</button>
                     {% endif %}
-                    <button class="outline" data-variant="danger" @click="openDelete('{{ r.room_id }}', '{{ r.name }}')">Delete</button>
+                    <button class="outline" data-variant="danger"
+                      data-room-id="{{ r.room_id }}" data-room-name="{{ r.name }}"
+                      @click="openDelete($el.dataset.roomId, $el.dataset.roomName)">Delete</button>
                   </div>
                 </td>
               </tr>

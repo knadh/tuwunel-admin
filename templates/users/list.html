@@ -54,7 +54,7 @@
           {% for u in users %}
           <tr data-mxid="{{ u.mxid }}" data-admin="{{ u.is_admin }}"
             data-last-active="{{ u.last_active | default(value='') }}">
-            <td><input type="checkbox" :value="'{{ u.mxid }}'" x-model="selected"></td>
+            <td><input type="checkbox" value="{{ u.mxid }}" x-model="selected"></td>
             <td>
               <a href="/users/{{ u.mxid | urlencode }}">{{ u.mxid | split(pat=":") | first | trim_start_matches(pat="@") }}</a>
               <br><small class="text-light">{{ u.mxid }}</small>
@@ -69,11 +69,11 @@
             <td>{% if u.last_active %}<small>{{ u.last_active }}</small>{% else %}<small>—</small>{% endif %}</td>
             <td>
               <div class="flex gap-2 justify-end flex-wrap">
-                <button class="outline" @click="openReset('{{ u.mxid }}')">Reset password</button>
+                <button class="outline" data-mxid="{{ u.mxid }}" @click="openReset($el.dataset.mxid)">Reset password</button>
                 {% if not u.is_admin %}
-                  <button popovertarget="pop-mk" class="outline" @click="target = '{{ u.mxid }}'">Make admin</button>
+                  <button popovertarget="pop-mk" class="outline" data-mxid="{{ u.mxid }}" @click="target = $el.dataset.mxid">Make admin</button>
                 {% endif %}
-                <button popovertarget="pop-da" class="outline" data-variant="danger" @click="target = '{{ u.mxid }}'">Deactivate</button>
+                <button popovertarget="pop-da" class="outline" data-variant="danger" data-mxid="{{ u.mxid }}" @click="target = $el.dataset.mxid">Deactivate</button>
               </div>
             </td>
           </tr>
