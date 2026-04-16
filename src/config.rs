@@ -1,6 +1,8 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
 use std::{fs, path::Path};
+
+const SAMPLE_CONFIG: &str = include_str!("../config.sample.toml");
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -36,4 +38,15 @@ impl Config {
             .with_context(|| format!("reading config from {}", path.display()))?;
         toml::from_str(&body).context("parsing config TOML")
     }
+}
+
+/// Write the bundled sample config to `path`. Errors if the file already exists.
+pub fn generate_sample(path: impl AsRef<Path>) -> Result<()> {
+    let path = path.as_ref();
+    if path.exists() {
+        return Err(anyhow!("config file already exists: {}", path.display()));
+    }
+    fs::write(path, SAMPLE_CONFIG)
+        .with_context(|| format!("writing config to {}", path.display()))?;
+    Ok(())
 }

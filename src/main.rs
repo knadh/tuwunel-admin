@@ -16,7 +16,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::sync::Arc;
 use tera::Tera;
 use tower_http::services::ServeDir;
@@ -24,14 +24,22 @@ use tower_sessions::{MemoryStore, SessionManagerLayer};
 use tracing::info;
 
 #[derive(Parser)]
-#[command(
-    name = "tuwunel-admin",
-    about = "Web admin UI for tuwunel (Matrix chat server"
-)]
+#[command(name = "tuwunel-admin")]
+#[command(about = "Web admin UI for tuwunel (Matrix chat server)")]
+#[command(version = env!("VERSION"))]
 struct Cli {
     /// Path to config.
     #[arg(short, long, default_value = "config.toml")]
     config: String,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Generate a sample config file at the path given by --config.
+    NewConfig,
 }
 
 pub struct Ctx {
@@ -50,6 +58,17 @@ async fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
+
+    if let Some(cmd) = cli.command {
+        match cmd {
+            Commands::NewConfig => {
+                config::generate_sample(&cli.config)?;
+                info!("config file generated: {}", cli.config);
+                return Ok(());
+            }
+        }
+    }
+
     let cfg = config::Config::load(&cli.config)?;
     let bind = cfg.server.bind.clone();
 
