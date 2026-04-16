@@ -2,7 +2,7 @@
 
 A simple, self-contained web admin UI for [tuwunel](https://github.com/matrix-construct/tuwunel) Matrix chat server. Tuwunel has no HTTP admin API and its administration is done by sending text commands to the server's admin room (conduwuit convention). This is unfortunately an extremely clunky, difficult UX.
 
-This program logs in as the Matrix user, and provides HTML UI/UX and functionality abstracting the `!admin` message commands underneath it.
+tuwunel-admin logs in as the Matrix user, and provides a simple web-based UI/UX abstracting the `!admin` message commands and functionality underneath it.
 
 - Create, list, and manage rooms and federation.
 - Create, list, and manage users.
@@ -10,6 +10,9 @@ This program logs in as the Matrix user, and provides HTML UI/UX and functionali
 - View and registration tokens.
 - View server configuration, run maintenance commands.
 - etc ..
+
+> [!NOTE]  
+> I've cobbled this together for my personal use and have only used it to administer a single non-federated tuwunel instance. The project is sub-v1.0.0 and may contain bugs. Use with care.
 
 ## Usage
 
