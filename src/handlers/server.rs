@@ -115,8 +115,12 @@ pub async fn federation_ping(
         return redirect_with_err(&session, "Server name is required.", "/server").await;
     }
     if !validate_line(server) {
-        return redirect_with_err(&session, "Server name cannot contain line breaks.", "/server")
-            .await;
+        return redirect_with_err(
+            &session,
+            "Server name cannot contain line breaks.",
+            "/server",
+        )
+        .await;
     }
     let cmd = format!("debug ping {server}");
     run_and_redirect(
@@ -141,8 +145,12 @@ pub async fn federation_resolve(
         return redirect_with_err(&session, "Server name is required.", "/server").await;
     }
     if !validate_line(server) {
-        return redirect_with_err(&session, "Server name cannot contain line breaks.", "/server")
-            .await;
+        return redirect_with_err(
+            &session,
+            "Server name cannot contain line breaks.",
+            "/server",
+        )
+        .await;
     }
     let cmd = format!("debug resolve-true-destination {server}");
     run_and_redirect(

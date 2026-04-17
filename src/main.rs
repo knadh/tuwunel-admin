@@ -15,18 +15,29 @@ mod users;
 use crate::log::info;
 use anyhow::Result;
 use axum::{
-    http::{header, HeaderValue},
+    extract::Path,
+    http::{header, HeaderValue, StatusCode},
+    response::IntoResponse,
     routing::{get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
+use rust_embed::Embed;
 use std::sync::Arc;
 use tera::Tera;
-use tower_http::{services::ServeDir, set_header::SetResponseHeaderLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_sessions::{
     cookie::{time::Duration, SameSite},
     Expiry, MemoryStore, SessionManagerLayer,
 };
+
+#[derive(Embed)]
+#[folder = "templates/"]
+struct Templates;
+
+#[derive(Embed)]
+#[folder = "static/"]
+struct StaticFiles;
 
 #[derive(Parser)]
 #[command(name = "tuwunel-admin")]
@@ -70,7 +81,7 @@ async fn main() -> Result<()> {
     let cfg = config::Config::load(&cli.config)?;
     let bind = cfg.server.bind.clone();
 
-    let tera = Tera::new("templates/**/*.html")?;
+    let tera = load_templates()?;
     let matrix = matrix::Matrix::new();
     let state = Arc::new(Ctx {
         config: cfg,
@@ -238,7 +249,7 @@ async fn main() -> Result<()> {
             get(handlers::login_page).post(handlers::login_submit),
         )
         .route("/logout", post(handlers::logout))
-        .nest_service("/static", ServeDir::new("static"))
+        .route("/static/*path", get(serve_static))
         .layer(sess)
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_CONTENT_TYPE_OPTIONS,
@@ -259,4 +270,39 @@ async fn main() -> Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+fn load_templates() -> Result<Tera> {
+    let mut tera = Tera::default();
+    tera.autoescape_on(vec![".html"]);
+
+    let files: Vec<(String, String)> = Templates::iter()
+        .filter(|p| p.ends_with(".html"))
+        .filter_map(|p| {
+            let file = Templates::get(&p)?;
+            let content = std::str::from_utf8(&file.data).ok()?.to_string();
+            Some((p.into_owned(), content))
+        })
+        .collect();
+
+    tera.add_raw_templates(files.iter().map(|(n, c)| (n.as_str(), c.as_str())))?;
+
+    Ok(tera)
+}
+
+async fn serve_static(Path(path): Path<String>) -> impl IntoResponse {
+    match StaticFiles::get(&path) {
+        Some(file) => {
+            let mime = mime_guess::from_path(&path)
+                .first_or_octet_stream()
+                .to_string();
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, mime)],
+                file.data.into_owned(),
+            )
+                .into_response()
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }

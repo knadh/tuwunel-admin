@@ -227,8 +227,12 @@ pub async fn delete_from_server(
         return redirect_with_err(&session, "Server name is required.", "/media").await;
     }
     if !validate_line(server) {
-        return redirect_with_err(&session, "Server name cannot contain line breaks.", "/media")
-            .await;
+        return redirect_with_err(
+            &session,
+            "Server name cannot contain line breaks.",
+            "/media",
+        )
+        .await;
     }
     let mut cmd = String::from("media delete-all-from-server");
     if checkbox(f.include_local.as_deref()) {
